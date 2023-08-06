@@ -1,3 +1,6 @@
 [submodule "KaGen"]
 	path = KaGen
 	url = https://github.com/KarlsruheGraphGeneration/KaGen
+[submodule "kamping"]
+	path = kamping
+	url = git@github.com:kamping-site/kamping.git
