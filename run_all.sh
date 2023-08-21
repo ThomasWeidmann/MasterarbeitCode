@@ -12,8 +12,8 @@ ruler_dist_min=3
 ruler_dist_max=6
 ruler_dist_step=1
 
+for dist in {10,20,30,50,75,100,200,300,400,500,600,700,800,900,1000}; do
 
-
-mpirun -np 1 build/Code sequential 1000000
-
+	mpirun -np $1 build/Code ruling_set $2 $dist
+done
 
