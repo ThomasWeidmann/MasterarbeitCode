@@ -72,7 +72,7 @@ int main(int argc, char* argv[]) {
 			regular_ruling_set algorithm(unidirectional_path.s, dist_rulers);
 			timer timer("algorithmus");
 			algorithm.start(comm);
-			timer.finalize(comm, ruling_set + " " + argv[2] + " " + argv[3]);
+			timer.finalize(comm, ruling_set + " " + comm.size() " " + argv[2] + " " + argv[3]);
 		}
 		else if (pointer_doubling.compare(argv[1]) == 0)
 		{
