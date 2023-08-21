@@ -3,7 +3,8 @@
 
 #include <chrono>
 
-
+#include <iostream>
+#include <fstream>
 
 #include "kamping/checking_casts.hpp"
 #include "kamping/collectives/alltoall.hpp"
@@ -43,18 +44,18 @@ class timer
 		_names.push_back(checkpoint);
 	}
 	
-	void finalize(kamping::Communicator<>& comm)
+	void finalize(kamping::Communicator<>& comm, std::string parameters)
 	{
 
 		_times.push_back(get_time());
 		
 		
 		
-		print(comm);
+		print(comm, parameters);
 	}
 	
 	
-	void print(kamping::Communicator<>& comm)
+	void print(kamping::Communicator<>& comm, std::string parameters)
 	{
 		using namespace kamping;
 		
@@ -71,7 +72,7 @@ class timer
 	
 		if (comm.rank() == 0)
 		{
-			std::cout << "{\n";
+			std::string output = "{\n\"parameters\":" + parameters + ",\n" ; 
 	
 			std::int32_t size = comm.size();
 			
@@ -85,16 +86,20 @@ class timer
 				{
 					all_relative_times_from_one_checkpoint[j] = all_relative_times[i + j*_names.size()];
 				}
-
-				std::cout << "\""<<_names[i] << "\"" << ":[" << all_relative_times_from_one_checkpoint[0];
+				
+				output += "\"" + _names[i] + "\"" + ":[" + std::to_string(all_relative_times_from_one_checkpoint[0]);
 				for (int i = 1; i < size; i++)
-					std::cout << "," << all_relative_times_from_one_checkpoint[i];
-				std::cout << "],\n";
+					output += "," + std::to_string(all_relative_times_from_one_checkpoint[i]);
+				output += "],\n";
 					
 			}
 
-			std::cout << "\"total time\":" << total_time << "\n}\n";
+			output += "\"total time\":" + std::to_string(total_time) + "\n}\n";
 			
+			std::ofstream myfile;
+			myfile.open ("results.txt",  std::ios::app);
+			myfile << output;
+			myfile.close();
 		}
 		
 		

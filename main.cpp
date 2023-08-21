@@ -72,7 +72,7 @@ int main(int argc, char* argv[]) {
 			regular_ruling_set algorithm(unidirectional_path.s, dist_rulers);
 			timer timer("algorithmus");
 			algorithm.start(comm);
-			timer.finalize(comm);
+			timer.finalize(comm, ruling_set + " " + argv[2] + " " + argv[3]);
 		}
 		else if (pointer_doubling.compare(argv[1]) == 0)
 		{
@@ -83,7 +83,7 @@ int main(int argc, char* argv[]) {
 			regular_pointer_doubling algorithm(unidirectional_path.s, comm);
 			timer timer("algorithmus");
 			algorithm.start(comm);
-			timer.finalize(comm);
+			timer.finalize(comm, pointer_doubling+ " " + argv[2]);
 		}
 		else if (sequential.compare(argv[1]) == 0 && mpi_size == 1)
 		{
@@ -93,7 +93,7 @@ int main(int argc, char* argv[]) {
 			sequential_list_ranking algorithm(unidirectional_path.s);
 			timer timer("algorithmus");
 			algorithm.start(comm);
-			timer.finalize(comm);
+			timer.finalize(comm, sequential + " " + argv[2]);
 		}
 		else 
 		{
