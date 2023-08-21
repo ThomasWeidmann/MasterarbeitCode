@@ -43,18 +43,18 @@ class timer
 		_names.push_back(checkpoint);
 	}
 	
-	void finalize(kamping::Communicator<>& comm, std::int32_t n, std::int32_t distance_rulers)
+	void finalize(kamping::Communicator<>& comm)
 	{
 
 		_times.push_back(get_time());
 		
 		
 		
-		print(comm,n, distance_rulers);
+		print(comm);
 	}
 	
 	
-	void print(kamping::Communicator<>& comm, std::int32_t n, std::int32_t distance_rulers)
+	void print(kamping::Communicator<>& comm)
 	{
 		using namespace kamping;
 		
@@ -71,10 +71,8 @@ class timer
 	
 		if (comm.rank() == 0)
 		{
-			
-			std::cout << "{\n\"n\":" << n<< ",\n";
-			std::cout << "\"p\":" << comm.size() << ",\n";
-			std::cout << "\"distance rulers\":" << distance_rulers << ",\n";
+			std::cout << "{\n";
+	
 			std::int32_t size = comm.size();
 			
 			std::int32_t total_time = get_time() - _times[0];

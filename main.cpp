@@ -22,6 +22,7 @@
 
 #include "regular_ruling_set.cpp"
 #include "timer.cpp"
+#include "sequential_list_ranking.cpp"
 
 int mpi_rank, mpi_size;
 
@@ -35,13 +36,74 @@ struct unidirectional_path {
 
 unidirectional_path generate_unidirectional_path(std::int32_t num_global_vertices);
 
+void error(std::string output)
+{
+	if (mpi_rank == 0)
+		std::cout << output << std::endl;
+}
 
+//das erste argument ist der algorithmus aka "ruling_set", "sequential", "pointer_doubling"
 int main(int argc, char* argv[]) {
 	MPI_Init(&argc, &argv);
 
     MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
     MPI_Comm_size(MPI_COMM_WORLD, &mpi_size);
 	srand((unsigned) time(NULL) + mpi_rank);
+	
+	kamping::Environment e;
+	kamping::Communicator<> comm;
+	std::string ruling_set = "ruling_set";
+	std::string sequential = "sequential";
+	std::string pointer_doubling = "pointer_doubling";
+	
+	if (argc < 2)
+	{
+		error("First argument is the type of algorithm: " + ruling_set + ", " + pointer_doubling + ", " + sequential);
+	}
+	else
+	{
+		if (ruling_set.compare(argv[1]) == 0)
+		{
+			std::int32_t num_global_vertices = atoi(argv[2]);
+			num_global_vertices  = mpi_size * (num_global_vertices / mpi_size);
+			std::int32_t dist_rulers = atoi(argv[3]);
+			unidirectional_path unidirectional_path = generate_unidirectional_path(num_global_vertices);
+
+			regular_ruling_set algorithm(unidirectional_path.s, dist_rulers);
+			timer timer("algorithmus");
+			algorithm.start(comm);
+			timer.finalize(comm);
+		}
+		else if (pointer_doubling.compare(argv[1]) == 0)
+		{
+			std::int32_t num_global_vertices = atoi(argv[2]);
+			num_global_vertices  = mpi_size * (num_global_vertices / mpi_size);
+			unidirectional_path unidirectional_path = generate_unidirectional_path(num_global_vertices);
+
+			regular_pointer_doubling algorithm(unidirectional_path.s, comm);
+			timer timer("algorithmus");
+			algorithm.start(comm);
+			timer.finalize(comm);
+		}
+		else if (sequential.compare(argv[1]) == 0 && mpi_size == 1)
+		{
+			std::int32_t num_global_vertices = atoi(argv[2]);
+			unidirectional_path unidirectional_path = generate_unidirectional_path(num_global_vertices);
+
+			sequential_list_ranking algorithm(unidirectional_path.s);
+			timer timer("algorithmus");
+			algorithm.start(comm);
+			timer.finalize(comm);
+		}
+		else 
+		{
+			error(std::string(argv[1]) + " is not a name of an algorithm or wrong parameters");
+		}
+	}
+	
+	MPI_Finalize();
+	return 0;
+	
 	if (argc != 3){
 		if (mpi_rank == 0)
 			std::cout << "Error\nParameter 1: Number of global vertices\nParameter 2: Distance of rulers" << std::endl;
@@ -50,8 +112,7 @@ int main(int argc, char* argv[]) {
 	}
 
 
-	kamping::Environment e;
-	kamping::Communicator<>        comm;
+	
 
 
 	std::int32_t num_global_vertices = atoi(argv[1]);

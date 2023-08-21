@@ -29,6 +29,25 @@ class regular_pointer_doubling
 	}
 	
 	
+	regular_pointer_doubling(std::vector<std::int32_t>& successors, kamping::Communicator<>& comm)
+	{
+		s = successors;
+		num_local_vertices = s.size();
+		q = s;
+		node_offset = num_local_vertices * comm.rank();
+		
+		r = std::vector<std::int32_t>(num_local_vertices, 1);
+		passive = std::vector<bool>(num_local_vertices, false);
+		
+		for (std::int32_t local_index = 0; local_index < num_local_vertices; local_index++)
+			if (q[local_index] == local_index + node_offset)
+			{
+				r[local_index] = 0;
+				passive[local_index] = true;
+			}
+	}
+	
+	
 	std::vector<std::int32_t> start(kamping::Communicator<>& comm)
 	{
 		
@@ -124,8 +143,8 @@ class regular_pointer_doubling
 		std::cout << rank << " mit rank array:\n";
 		for (int i = 0; i < num_local_vertices; i++)
 			std::cout << r[i] << " ";
-		std::cout <<std::endl;*/
-		
+		std::cout <<std::endl;
+		*/
 		return r;
 		
 	}

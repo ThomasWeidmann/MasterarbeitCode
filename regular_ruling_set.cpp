@@ -12,7 +12,10 @@ struct packet {
 	std::int32_t destination;
 };
 
-
+struct node_packet {
+	std::int32_t source;
+	std::int32_t destination;
+};
 
 /*
 here every PE must have the same number of nodes aka the length of successors is the same
@@ -33,7 +36,7 @@ class regular_ruling_set
 	
 	void start(kamping::Communicator<>& comm)
 	{
-		timer timer("algorithmus");
+		
 		
 		
 		
@@ -96,13 +99,12 @@ class regular_ruling_set
 		
 		std::int32_t dist_rulers = num_local_vertices / num_local_rulers;
 		std::int32_t max_iteration = dist_rulers * std::log(num_global_vertices);
-		std::int32_t iteration;
-		for (iteration = 1; iteration < max_iteration; iteration++)
+		std::int32_t iteration=0;
+		while (iteration++ < max_iteration || any_PE_has_work(comm, more_nodes_reached))
 		{
 			//if (rank ==  0) std::cout << "iteration " << iteration << " mit " << num_local_vertices - num_reached_nodes << std::endl;
 			
-			if (iteration == ((std::int32_t) (dist_rulers * std::log(dist_rulers))))
-				timer.add_checkpoint("zu optimieren");
+			
 			
 			std::fill(num_packets_per_PE.begin(), num_packets_per_PE.end(), 0);
 			more_nodes_reached = false;
@@ -152,73 +154,24 @@ class regular_ruling_set
 			
 		}
 		
-		//falls statistische abschätzung nicht gereicht hat, wird schleife weiter ausgeführt
-		while (any_PE_has_work(comm, more_nodes_reached))
-		{
-			//if (rank == 0) std::cout << rank << " extra runde " << iteration - max_iteration + 1 << std::endl;
-			
-			
-			iteration++;
-			
-			std::fill(num_packets_per_PE.begin(), num_packets_per_PE.end(), 0);
-			more_nodes_reached = false;
-			
-			for (packet& packet: recv_buffer)
-			{
-				
-				if (packet_will_be_forwarded(packet))
-				{
-					std::int32_t local_index = packet.destination - node_offset;
-					std::int32_t target_node = s[local_index];
-					std::int32_t targetPE = calculate_targetPE(target_node);
-					num_packets_per_PE[targetPE]++;
-				}
-			}
-			calculate_send_displacements_and_reset_num_packets_per_PE(send_displacements, num_packets_per_PE);
-	
-			out_buffer.resize(send_displacements[size]);
 		
-			for (packet& packet: recv_buffer)
-			{
-				std::int32_t local_index = packet.destination - node_offset;
-				
-				mst[local_index] = packet.ruler_source;
-				del[local_index] = iteration;
-				
-				num_reached_nodes++;
-				more_nodes_reached = true;
-				
-				if (packet_will_be_forwarded(packet))
-				{
-					std::int32_t target_node = s[local_index];
-					std::int32_t targetPE = calculate_targetPE(target_node);
-					std::int32_t packet_index = send_displacements[targetPE] + num_packets_per_PE[targetPE]++;
-					
-					out_buffer[packet_index].ruler_source = packet.ruler_source;
-					out_buffer[packet_index].destination = target_node;
-				
-				}
-			}
-
-			auto recv = comm.alltoallv(kamping::send_buf(out_buffer), kamping::send_counts(num_packets_per_PE));
-
-			recv_buffer = recv.extract_recv_buffer(); //wird der alte recv_buffer eigentlich gefreed?
-			
-		}
 		
 		//wir müssen noch anfangsknoten zählen und dann die gesamtzahl als rank des final rulers setzten
 		
 		std::vector<std::int32_t> send_num_not_reached_nodes(1, num_local_vertices - num_reached_nodes);
 		std::vector<std::int32_t> recv_num_not_reached_nodes;
 		comm.allgather(kamping::send_buf(send_num_not_reached_nodes), kamping::recv_buf(recv_num_not_reached_nodes));
-		std::int32_t sum = 0;
+		std::int32_t sum = -1; //weil der erste ruler auch not reached ist, aber nicht mitgezählt werden soll. sonst nur nicht ruler unreached
 		for (std::int32_t i = 0; i < size; i++)
 			sum+= recv_num_not_reached_nodes[i];
+		
+		
 		
 		std::int32_t local_index_final_node = -1;
 		for (std::int32_t local_index = 0; local_index < num_local_rulers; local_index++)
 			if (mst[local_index] == -1)
 			{
+				
 				local_index_final_node = local_index;
 				mst[local_index] = local_index + node_offset;
 				del[local_index] = sum;
@@ -234,12 +187,16 @@ class regular_ruling_set
 			s_rec[local_index] = next_ruler - next_ruler_PE * num_local_vertices + next_ruler_PE * num_local_rulers;
 			r_rec[local_index] = del[local_index];
 		}
-		timer.add_checkpoint("recursion");
+	
 		
 		regular_pointer_doubling algorithm(s_rec, r_rec, local_index_final_node);
 		std::vector<std::int32_t> result = algorithm.start(comm);
+		for (std::int32_t local_index = 0; local_index < num_local_rulers; local_index++)
+		{
+			result[local_index] = num_global_vertices - 1 - result[local_index];
+		}
 		
-		timer.add_checkpoint("restore values");
+	
 		std::vector<std::int32_t> all_results;
 		
 		comm.allgather(kamping::send_buf(result), kamping::recv_buf(all_results));
@@ -247,6 +204,11 @@ class regular_ruling_set
 		//dafür müssen alle ruler auf alle PE verteilt werden
 		
 		result.resize(num_local_vertices);
+		
+	
+		std::vector<node_packet> local_unreached_nodes(num_local_vertices - num_reached_nodes + 1);
+		std::int32_t local_unreached_nodes_index = 0;
+		
 		for (std::int32_t local_index = num_local_rulers; local_index < num_local_vertices; local_index++)
 		{
 			if (mst[local_index] != -1)
@@ -254,15 +216,52 @@ class regular_ruling_set
 				std::int32_t prev_ruler = mst[local_index];
 				std::int32_t prev_ruler_PE = calculate_targetPE(prev_ruler);
 				std::int32_t rank_prev_ruler = all_results[prev_ruler - num_local_vertices * prev_ruler_PE + num_local_rulers * prev_ruler_PE];
-				result[local_index] = del[local_index] + rank_prev_ruler;
+				result[local_index] =  rank_prev_ruler - del[local_index];
 			}
 			else 
 			{
-				result[local_index] = -1;
+				local_unreached_nodes[local_unreached_nodes_index].source = local_index + node_offset;
+				local_unreached_nodes[local_unreached_nodes_index].destination = s[local_index];
+				local_unreached_nodes_index++;
 			}
 		}
 		
-		timer.finalize(comm, num_global_vertices, distance_rulers);
+		local_unreached_nodes.resize(local_unreached_nodes_index);
+		std::vector<node_packet> global_unreached_nodes; //das hier sind jetzt genau die nodes, die vor dem ersten ruler sind
+		
+		comm.allgatherv(kamping::send_buf(local_unreached_nodes), kamping::recv_buf(global_unreached_nodes));
+		
+		std::unordered_map<std::int32_t, std::int32_t> node_map; //node_map[source] = destination, für jeden unreached node (source,destination)
+		std::unordered_map<std::int32_t, std::int32_t> has_pred_map; //has_pred_map[source] = true, if any node source has any pred
+		std::int32_t start_node;
+		
+		for (std::int32_t i = 0; i < global_unreached_nodes.size(); i++)
+		{
+			node_packet node = global_unreached_nodes[i];
+			node_map[node.source] = node.destination;
+			has_pred_map[node.destination] = true;
+		}
+		
+		for (std::int32_t i = 0; i < global_unreached_nodes.size(); i++)
+		{
+			if (!has_pred_map.contains(global_unreached_nodes[i].source))
+			{
+				start_node = global_unreached_nodes[i].source;
+				break;
+			}
+		}
+		std::int32_t node = start_node;
+		std::int32_t node_rank = num_global_vertices - 1;
+		while (node_map.contains(node))
+		{
+			if (calculate_targetPE(node) == rank)
+				result[node - node_offset] = node_rank;
+			node_rank--;
+			node = node_map[node];
+		}
+		
+	
+	
 	/*
 		std::cout << rank << " mit result array:\n";
 		for (int i = 0; i < num_local_vertices; i++)
