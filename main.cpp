@@ -21,7 +21,7 @@
 #include "kamping/collectives/bcast.hpp"
 
 #include "regular_ruling_set.cpp"
-#include "Timer.cpp"
+#include "timer.cpp"
 
 int mpi_rank, mpi_size;
 
