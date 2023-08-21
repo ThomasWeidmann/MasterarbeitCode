@@ -54,6 +54,7 @@ class regular_ruling_set
 		std::vector<std::int32_t> num_packets_per_PE(size,0);
 		std::vector<std::int32_t> send_displacements(size + 1,0);
 		
+		std::int32_t dist_from_last_ruler = -1;
 		
 		for (std::int32_t local_index = 0; local_index < num_local_rulers; local_index++)
 		{
@@ -61,6 +62,10 @@ class regular_ruling_set
 			{
 				std::int32_t targetPE = calculate_targetPE(s[local_index]);
 				num_packets_per_PE[targetPE]++;
+			}
+			else
+			{
+				dist_from_last_ruler = 0;
 			}
 		}
 	
@@ -96,12 +101,16 @@ class regular_ruling_set
 		{
 			//if (rank ==  0) std::cout << "iteration " << iteration << " mit " << num_local_vertices - num_reached_nodes << std::endl;
 			
+			if (iteration == ((std::int32_t) (dist_rulers * std::log(dist_rulers))))
+				timer.add_checkpoint("zu optimieren");
 			
 			std::fill(num_packets_per_PE.begin(), num_packets_per_PE.end(), 0);
 			more_nodes_reached = false;
 			
 			for (packet& packet: recv_buffer)
 			{
+				
+				
 				
 				if (packet_will_be_forwarded(packet))
 				{
@@ -212,7 +221,7 @@ class regular_ruling_set
 			{
 				local_index_final_node = local_index;
 				mst[local_index] = local_index + node_offset;
-				del[local_index] = 0;
+				del[local_index] = sum;
 			}
 			
 			
@@ -258,9 +267,9 @@ class regular_ruling_set
 		std::cout << rank << " mit result array:\n";
 		for (int i = 0; i < num_local_vertices; i++)
 			std::cout << result[i] << " ";
-		std::cout <<std::endl;*/
-		//timer.finalize(comm);
-		//jetzt alle nodes gereached
+		std::cout <<std::endl;
+*/
+
 		
 	}
 	

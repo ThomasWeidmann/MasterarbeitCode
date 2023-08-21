@@ -5,7 +5,6 @@
 
 
 
-#include "kamping/examples/usage/helpers_for_examples.hpp"
 #include "kamping/checking_casts.hpp"
 #include "kamping/collectives/alltoall.hpp"
 #include "kamping/communicator.hpp"
