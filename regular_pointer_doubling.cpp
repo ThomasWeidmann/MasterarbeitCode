@@ -1,3 +1,5 @@
+#pragma once
+
 struct node_request {
 	std::int32_t node;
 	std::int32_t mst;
