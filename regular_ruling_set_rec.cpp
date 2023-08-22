@@ -7,40 +7,43 @@
 
 #include "timer.cpp"
 #include "regular_pointer_doubling.cpp"
-#include "regular_ruling_set_rec.cpp"
 
-struct packet {
+struct packet_rec {
 	std::int32_t ruler_source;
 	std::int32_t destination;
+	std::int32_t ruler_distance;
 };
 
-struct node_packet {
+struct node_packet_rec {
 	std::int32_t source;
 	std::int32_t destination;
+	std::int32_t distance;
 };
 
 /*
 here every PE must have the same number of nodes aka the length of successors is the same
 also dist_rulers >= 3
 */
-class regular_ruling_set
+class regular_ruling_set_rec
 {
 	public:
 	
-	regular_ruling_set(std::vector<std::int32_t>& successors, int32_t dist_rulers, int32_t iterations)
+	regular_ruling_set_rec(std::vector<std::int32_t>& successors, std::vector<std::int32_t>& ranks, std::int32_t local_index_final, std::int32_t dist_rulers)
 	{
 		s = successors;
+		r = ranks;
 		num_local_vertices = s.size();
 		num_local_rulers = num_local_vertices / dist_rulers;
 		distance_rulers = dist_rulers;
-		num_iterations = iterations;
+		local_index_final_node = local_index_final;
+		
 	}
 	
 	
-	void start(kamping::Communicator<>& comm)
+	std::vector<std::int32_t> start(kamping::Communicator<>& comm)
 	{
 		
-		
+		std::cout << "rekursuion\n";
 		
 		
 		
@@ -60,7 +63,7 @@ class regular_ruling_set
 		std::vector<std::int32_t> num_packets_per_PE(size,0);
 		std::vector<std::int32_t> send_displacements(size + 1,0);
 		
-
+		std::int32_t dist_from_last_ruler = -1;
 		
 		for (std::int32_t local_index = 0; local_index < num_local_rulers; local_index++)
 		{
@@ -69,11 +72,12 @@ class regular_ruling_set
 				std::int32_t targetPE = calculate_targetPE(s[local_index]);
 				num_packets_per_PE[targetPE]++;
 			}
+
 		}
 	
 		calculate_send_displacements_and_reset_num_packets_per_PE(send_displacements, num_packets_per_PE);
 		//now packets are written
-		std::vector<packet> out_buffer(send_displacements[size]);
+		std::vector<packet_rec> out_buffer(send_displacements[size]);
 		for (std::int32_t local_index = 0; local_index < num_local_rulers; local_index++)
 		{
 			if (!is_final(local_index))
@@ -83,12 +87,13 @@ class regular_ruling_set
 				
 				out_buffer[packet_index].ruler_source = local_index + node_offset;
 				out_buffer[packet_index].destination = s[local_index];
+				out_buffer[packet_index].ruler_distance = r[local_index];
 			}
 		}
-
+		
 		auto recv = comm.alltoallv(kamping::send_buf(out_buffer), kamping::send_counts(num_packets_per_PE));
 	
-		std::vector<packet> recv_buffer = recv.extract_recv_buffer();
+		std::vector<packet_rec> recv_buffer = recv.extract_recv_buffer();
 
 		std::vector<std::int32_t> mst(num_local_vertices, -1); //previous ruler
 		std::vector<std::int32_t> del(num_local_vertices, -1); //dist to previous ruler
@@ -108,7 +113,7 @@ class regular_ruling_set
 			std::fill(num_packets_per_PE.begin(), num_packets_per_PE.end(), 0);
 			more_nodes_reached = false;
 			
-			for (packet& packet: recv_buffer)
+			for (packet_rec& packet: recv_buffer)
 			{
 				
 				
@@ -125,12 +130,12 @@ class regular_ruling_set
 	
 			out_buffer.resize(send_displacements[size]);
 		
-			for (packet& packet: recv_buffer)
+			for (packet_rec& packet: recv_buffer)
 			{
 				std::int32_t local_index = packet.destination - node_offset;
 				
 				mst[local_index] = packet.ruler_source;
-				del[local_index] = iteration;
+				del[local_index] = packet.ruler_distance;
 				
 				num_reached_nodes++;
 				more_nodes_reached = true;
@@ -143,7 +148,7 @@ class regular_ruling_set
 					
 					out_buffer[packet_index].ruler_source = packet.ruler_source;
 					out_buffer[packet_index].destination = target_node;
-				
+					out_buffer[packet_index].ruler_distance = packet.ruler_distance + r[local_index];
 				}
 			}
 
@@ -153,25 +158,31 @@ class regular_ruling_set
 			
 		}
 		
+		//wir müssen noch die insgesamte distanz der anfangsknoten vor dem unreached ruler zählen und dann die gesamtzahl als rank setzten
 		
 		
-		//wir müssen noch anfangsknoten zählen und dann die gesamtzahl als rank des final rulers setzten
+		std::int32_t local_partial_distance = 0;
+		for (std::int32_t local_index = num_local_rulers; local_index < num_local_vertices; local_index++)
+		{
+			if (mst[local_index] == -1)
+				local_partial_distance += r[local_index];
+		}
 		
-		std::vector<std::int32_t> send_num_not_reached_nodes(1, num_local_vertices - num_reached_nodes);
-		std::vector<std::int32_t> recv_num_not_reached_nodes;
-		comm.allgather(kamping::send_buf(send_num_not_reached_nodes), kamping::recv_buf(recv_num_not_reached_nodes));
-		std::int32_t sum = -1; //weil der erste ruler auch not reached ist, aber nicht mitgezählt werden soll. sonst nur nicht ruler unreached
+		std::vector<std::int32_t> send_partial_distance(1, local_partial_distance);
+		std::vector<std::int32_t> recv_partial_distance;
+		comm.allgather(kamping::send_buf(send_partial_distance), kamping::recv_buf(recv_partial_distance));
+		std::int32_t sum = 0; 
 		for (std::int32_t i = 0; i < size; i++)
-			sum+= recv_num_not_reached_nodes[i];
+			sum+= recv_partial_distance[i];
+	
 		
 		
-		
-		std::int32_t local_index_final_node = -1; //das hier ist der erste ruler, aber  im rekursiven aufruf der letzte node insgesamt
+		std::int32_t local_index_final_node_rec = -1;
 		for (std::int32_t local_index = 0; local_index < num_local_rulers; local_index++)
 			if (mst[local_index] == -1)
 			{
 				
-				local_index_final_node = local_index;
+				local_index_final_node_rec = local_index;
 				mst[local_index] = local_index + node_offset;
 				del[local_index] = sum;
 			}
@@ -187,19 +198,9 @@ class regular_ruling_set
 			r_rec[local_index] = del[local_index];
 		}
 	
-		std::vector<std::int32_t> result;
-		if (num_iterations == 1)
-		{
-			regular_pointer_doubling algorithm(s_rec, r_rec, local_index_final_node);
-			result = algorithm.start(comm);
-		}
-		else
-		{
-			regular_ruling_set_rec algorithm(s_rec, r_rec, local_index_final_node, distance_rulers);
-			result = algorithm.start(comm);
-		}
 		
-		
+		regular_pointer_doubling algorithm(s_rec, r_rec, local_index_final_node_rec);
+		std::vector<std::int32_t> result = algorithm.start(comm);
 		for (std::int32_t local_index = 0; local_index < num_local_rulers; local_index++)
 		{
 			result[local_index] = num_global_vertices - 1 - result[local_index];
@@ -207,7 +208,7 @@ class regular_ruling_set
 		
 	
 		std::vector<std::int32_t> all_results;
-		//falls dist_rulers << p, dann sollten results die benötigt werden requested werden und dann in eine lokale hasmap für effizienten zugriff geschrieben werden
+		
 		comm.allgather(kamping::send_buf(result), kamping::recv_buf(all_results));
 		//jetzt müssen werte wiederhergestellt werden
 		//dafür müssen alle ruler auf alle PE verteilt werden
@@ -215,7 +216,7 @@ class regular_ruling_set
 		result.resize(num_local_vertices);
 		
 	
-		std::vector<node_packet> local_unreached_nodes(num_local_vertices - num_reached_nodes + 1);
+		std::vector<node_packet_rec> local_unreached_nodes(num_local_vertices - num_reached_nodes + 1);
 		std::int32_t local_unreached_nodes_index = 0;
 		
 		for (std::int32_t local_index = num_local_rulers; local_index < num_local_vertices; local_index++)
@@ -231,12 +232,13 @@ class regular_ruling_set
 			{
 				local_unreached_nodes[local_unreached_nodes_index].source = local_index + node_offset;
 				local_unreached_nodes[local_unreached_nodes_index].destination = s[local_index];
+				local_unreached_nodes[local_unreached_nodes_index].distance = r[local_index];
 				local_unreached_nodes_index++;
 			}
 		}
 		
 		local_unreached_nodes.resize(local_unreached_nodes_index);
-		std::vector<node_packet> global_unreached_nodes; //das hier sind jetzt genau die nodes, die vor dem ersten ruler sind
+		std::vector<node_packet_rec> global_unreached_nodes; //das hier sind jetzt genau die nodes, die vor dem ersten ruler sind
 		
 		comm.allgatherv(kamping::send_buf(local_unreached_nodes), kamping::recv_buf(global_unreached_nodes));
 		
@@ -246,7 +248,7 @@ class regular_ruling_set
 		
 		for (std::int32_t i = 0; i < global_unreached_nodes.size(); i++)
 		{
-			node_packet node = global_unreached_nodes[i];
+			node_packet_rec node = global_unreached_nodes[i];
 			node_map[node.source] = node.destination;
 			has_pred_map[node.destination] = true;
 		}
@@ -260,7 +262,7 @@ class regular_ruling_set
 			}
 		}
 		std::int32_t node = start_node;
-		std::int32_t node_rank = num_global_vertices - 1;
+		std::int32_t node_rank = num_global_vertices - 1; //rank of final node, needs to be changed!
 		while (node_map.contains(node))
 		{
 			if (calculate_targetPE(node) == rank)
@@ -268,17 +270,7 @@ class regular_ruling_set
 			node_rank--;
 			node = node_map[node];
 		}
-		
-	
-	
-	/*
-		std::cout << rank << " mit result array:\n";
-		for (int i = 0; i < num_local_vertices; i++)
-			std::cout << result[i] << " ";
-		std::cout <<std::endl;
-*/
-
-		
+		return result;
 	}
 	
 	bool is_global_ruler(std::int32_t global_index)
@@ -323,7 +315,7 @@ class regular_ruling_set
 	}
 	
 	//a packet will be forwardef iff it doesn't point to ruler and doesn't point to final node
-	bool packet_will_be_forwarded(packet packet)
+	bool packet_will_be_forwarded(packet_rec packet)
 	{
 		std::int32_t local_index = packet.destination - node_offset;
 		return !is_ruler(local_index) && !is_final(local_index);
@@ -333,11 +325,12 @@ class regular_ruling_set
 	
 	private: 
 	
+	std::vector<std::int32_t> r;
 	std::vector<std::int32_t> s;
 	std::int32_t num_local_vertices;
 	std::int32_t num_local_rulers;
 	std::int32_t distance_rulers;
-	std::int32_t num_iterations;
+	std::int32_t local_index_final_node;
 	
 	std::int32_t size;
 	std::int32_t rank;

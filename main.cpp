@@ -69,7 +69,7 @@ int main(int argc, char* argv[]) {
 			std::int32_t dist_rulers = atoi(argv[3]);
 			unidirectional_path unidirectional_path = generate_unidirectional_path(num_global_vertices);
 
-			regular_ruling_set algorithm(unidirectional_path.s, dist_rulers);
+			regular_ruling_set algorithm(unidirectional_path.s, dist_rulers, 2);
 			timer timer("algorithmus");
 			algorithm.start(comm);
 			timer.finalize(comm, ruling_set + " " + std::to_string(comm.size()) + " " + argv[2] + " " + argv[3]);
@@ -104,31 +104,6 @@ int main(int argc, char* argv[]) {
 	MPI_Finalize();
 	return 0;
 	
-	if (argc != 3){
-		if (mpi_rank == 0)
-			std::cout << "Error\nParameter 1: Number of global vertices\nParameter 2: Distance of rulers" << std::endl;
-		MPI_Finalize();
-		return 0;
-	}
-
-
-	
-
-
-	std::int32_t num_global_vertices = atoi(argv[1]);
-	std::int32_t dist_rulers = atoi(argv[2]);
-	
-	num_global_vertices  = mpi_size * (num_global_vertices / mpi_size); //this makes sure, that every PE has same number of local vertices
-	
-	unidirectional_path unidirectional_path = generate_unidirectional_path(num_global_vertices);
-
-	regular_ruling_set algorithm(unidirectional_path.s, dist_rulers);
-	algorithm.start(comm);
-	
-	
-
-	MPI_Finalize();
-    return 0;
 }
 
 
