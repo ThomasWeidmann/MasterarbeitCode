@@ -95,7 +95,7 @@ class timer
 			}
 
 			output += "\"total time\":" + std::to_string(total_time) + "\n}\n";
-			
+			std::cout << output;
 			std::ofstream myfile;
 			myfile.open ("results.txt",  std::ios::app);
 			myfile << output;
