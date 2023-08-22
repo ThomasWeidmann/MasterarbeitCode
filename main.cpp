@@ -83,7 +83,7 @@ int main(int argc, char* argv[]) {
 			regular_pointer_doubling algorithm(unidirectional_path.s, comm);
 			timer timer("algorithmus");
 			algorithm.start(comm);
-			timer.finalize(comm, pointer_doubling+ " " + argv[2]);
+			timer.finalize(comm, pointer_doubling+ " " + comm.size() + " " + argv[2]);
 		}
 		else if (sequential.compare(argv[1]) == 0 && mpi_size == 1)
 		{
@@ -93,7 +93,7 @@ int main(int argc, char* argv[]) {
 			sequential_list_ranking algorithm(unidirectional_path.s);
 			timer timer("algorithmus");
 			algorithm.start(comm);
-			timer.finalize(comm, sequential + " " + argv[2]);
+			timer.finalize(comm, sequential + " " + comm.size() + " " + argv[2]);
 		}
 		else 
 		{
