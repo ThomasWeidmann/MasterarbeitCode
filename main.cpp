@@ -23,6 +23,7 @@
 #include "regular_ruling_set.cpp"
 #include "timer.cpp"
 #include "sequential_list_ranking.cpp"
+#include "regular_ruling_set2.cpp"
 
 int mpi_rank, mpi_size;
 
@@ -35,6 +36,7 @@ struct unidirectional_path {
 };
 
 unidirectional_path generate_unidirectional_path(std::int32_t num_global_vertices);
+std::vector<std::int64_t> generate_regular_successor_vector(std::int64_t num_local_vertices);
 
 void error(std::string output)
 {
@@ -50,9 +52,12 @@ int main(int argc, char* argv[]) {
     MPI_Comm_size(MPI_COMM_WORLD, &mpi_size);
 	srand((unsigned) time(NULL) + mpi_rank);
 	
+	
+	
 	kamping::Environment e;
 	kamping::Communicator<> comm;
 	std::string ruling_set = "ruling_set";
+	std::string ruling_set2 = "ruling_set2";
 	std::string sequential = "sequential";
 	std::string pointer_doubling = "pointer_doubling";
 	
@@ -73,6 +78,16 @@ int main(int argc, char* argv[]) {
 			timer timer("algorithmus");
 			algorithm.start(comm);
 			timer.finalize(comm, ruling_set + " " + std::to_string(comm.size()) + " " + argv[2] + " " + argv[3]);
+		}
+		else if (ruling_set2.compare(argv[1]) == 0)
+		{
+			std::int32_t num_local_vertices = atoi(argv[2]);
+			std::int32_t dist_rulers = atoi(argv[3]);
+			timer timer("algorithmus");
+			std::vector<std::int64_t> s = generate_regular_successor_vector(num_local_vertices);
+			timer.finalize(comm, "ende");
+			regular_ruling_set2 algorithm(s, dist_rulers);
+			algorithm.start(comm);
 		}
 		else if (pointer_doubling.compare(argv[1]) == 0)
 		{
@@ -106,6 +121,25 @@ int main(int argc, char* argv[]) {
 	
 }
 
+
+//every PE has same number of vertices
+std::vector<std::int64_t> generate_regular_successor_vector(std::int64_t num_local_vertices)
+{
+	
+	kagen::KaGen gen(MPI_COMM_WORLD);
+	std::vector<std::int64_t> s(num_local_vertices);
+	std::int64_t num_global_vertices = mpi_size * num_local_vertices;
+	auto path = gen.GenerateDirectedPath(num_global_vertices, true);
+	
+	for (std::int64_t i = 0; i < num_local_vertices; i++)
+		s[i] = i + mpi_rank * num_local_vertices;
+	
+	for (auto const& [src, dst]: path.edges)
+		s[src - mpi_rank * num_local_vertices] = dst;
+	
+
+	return s;
+}
 
 unidirectional_path generate_unidirectional_path(std::int32_t num_global_vertices)
 {
