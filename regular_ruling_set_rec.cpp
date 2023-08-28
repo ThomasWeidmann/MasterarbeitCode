@@ -8,17 +8,7 @@
 #include "timer.cpp"
 #include "regular_pointer_doubling.cpp"
 
-struct packet_rec {
-	std::int32_t ruler_source;
-	std::int32_t destination;
-	std::int32_t ruler_distance;
-};
 
-struct node_packet_rec {
-	std::int32_t source;
-	std::int32_t destination;
-	std::int32_t distance;
-};
 
 /*
 here every PE must have the same number of nodes aka the length of successors is the same
@@ -26,6 +16,18 @@ also dist_rulers >= 3
 */
 class regular_ruling_set_rec
 {
+	struct packet_rec {
+		std::int32_t ruler_source;
+		std::int32_t destination;
+		std::int32_t ruler_distance;
+	};
+
+	struct node_packet_rec {
+		std::int32_t source;
+		std::int32_t destination;
+		std::int32_t distance;
+	};
+	
 	public:
 	
 	regular_ruling_set_rec(std::vector<std::int32_t>& successors, std::vector<std::int32_t>& ranks, std::int32_t local_index_final, std::int32_t dist_rulers)

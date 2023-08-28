@@ -9,15 +9,7 @@
 #include "regular_pointer_doubling.cpp"
 #include "regular_ruling_set_rec.cpp"
 
-struct packet {
-	std::int32_t ruler_source;
-	std::int32_t destination;
-};
 
-struct node_packet {
-	std::int32_t source;
-	std::int32_t destination;
-};
 
 /*
 here every PE must have the same number of nodes aka the length of successors is the same
@@ -25,6 +17,16 @@ also dist_rulers >= 3
 */
 class regular_ruling_set
 {
+	struct packet {
+		std::int32_t ruler_source;
+		std::int32_t destination;
+	};
+
+	struct node_packet {
+		std::int32_t source;
+		std::int32_t destination;
+	};
+	
 	public:
 	
 	regular_ruling_set(std::vector<std::int32_t>& successors, int32_t dist_rulers, int32_t iterations)
@@ -40,7 +42,7 @@ class regular_ruling_set
 	void start(kamping::Communicator<>& comm)
 	{
 		
-		
+		timer timer("ruler_pakete_senden");
 		
 		
 		
@@ -96,6 +98,7 @@ class regular_ruling_set
 		std::int32_t num_reached_nodes = 0;
 		bool more_nodes_reached = false;
 		
+		timer.add_checkpoint("pakete_verfolgen");
 	
 		std::int32_t max_iteration = distance_rulers * std::log(num_global_vertices);
 		std::int32_t iteration=0;
@@ -153,7 +156,7 @@ class regular_ruling_set
 			
 		}
 		
-		
+		timer.add_checkpoint("rekursion_vorbereiten");
 		
 		//wir müssen noch anfangsknoten zählen und dann die gesamtzahl als rank des final rulers setzten
 		
@@ -187,6 +190,8 @@ class regular_ruling_set
 			r_rec[local_index] = del[local_index];
 		}
 	
+		timer.add_checkpoint("rekursion");
+		
 		std::vector<std::int32_t> result;
 		if (num_iterations == 1)
 		{
@@ -199,6 +204,7 @@ class regular_ruling_set
 			result = algorithm.start(comm);
 		}
 		
+		timer.add_checkpoint("finalen_ranks_berechnen");
 		
 		for (std::int32_t local_index = 0; local_index < num_local_rulers; local_index++)
 		{
@@ -269,7 +275,7 @@ class regular_ruling_set
 			node = node_map[node];
 		}
 		
-	
+		timer.finalize(comm, num_local_vertices, distance_rulers);
 	
 	/*
 		std::cout << rank << " mit result array:\n";

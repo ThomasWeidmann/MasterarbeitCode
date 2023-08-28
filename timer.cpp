@@ -44,19 +44,11 @@ class timer
 		_names.push_back(checkpoint);
 	}
 	
-	void finalize(kamping::Communicator<>& comm, std::string parameters)
+	void finalize(kamping::Communicator<>& comm, std::uint64_t num_local_vertices, std::uint64_t dist_rulers)
 	{
 
 		_times.push_back(get_time());
-		
-		
-		
-		print(comm, parameters);
-	}
-	
-	
-	void print(kamping::Communicator<>& comm, std::string parameters)
-	{
+
 		using namespace kamping;
 		
 		std::vector<uint64_t> relative_times(_names.size());
@@ -65,6 +57,7 @@ class timer
 			relative_times[i] = _times[i+1] - _times[i];
 		}
 		
+		
 		std::vector<uint64_t> all_relative_times;
 	
 		comm.gather(send_buf(relative_times), recv_buf(all_relative_times), root(0));
@@ -72,8 +65,10 @@ class timer
 	
 		if (comm.rank() == 0)
 		{
-			std::string output = "{\n\"parameters\":" + parameters + ",\n" ; 
-	
+			std::string output = "{\n\"num_local_vertices\":" + std::to_string(num_local_vertices) + ",\n" ; 
+			output += "\"dist_rulers\":" + std::to_string(dist_rulers) + ",\n";
+			output += "\"p\":" + std::to_string(comm.size()) + ",\n";
+			
 			std::int32_t size = comm.size();
 			
 			std::int32_t total_time = get_time() - _times[0];
@@ -94,7 +89,7 @@ class timer
 					
 			}
 
-			output += "\"total time\":" + std::to_string(total_time) + "\n}\n";
+			output += "\"total time\":" + std::to_string(total_time) + "\n},\n";
 			std::cout << output;
 			std::ofstream myfile;
 			myfile.open ("results.txt",  std::ios::app);

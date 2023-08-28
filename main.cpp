@@ -36,7 +36,7 @@ struct unidirectional_path {
 };
 
 unidirectional_path generate_unidirectional_path(std::int32_t num_global_vertices);
-std::vector<std::int64_t> generate_regular_successor_vector(std::int64_t num_local_vertices);
+std::vector<std::uint64_t> generate_regular_successor_vector(std::uint64_t num_local_vertices);
 
 void error(std::string output)
 {
@@ -69,23 +69,19 @@ int main(int argc, char* argv[]) {
 	{
 		if (ruling_set.compare(argv[1]) == 0)
 		{
-			std::int32_t num_global_vertices = atoi(argv[2]);
-			num_global_vertices  = mpi_size * (num_global_vertices / mpi_size);
+			std::int32_t num_global_vertices = atoi(argv[2]) * mpi_size;
+
 			std::int32_t dist_rulers = atoi(argv[3]);
 			unidirectional_path unidirectional_path = generate_unidirectional_path(num_global_vertices);
 
-			regular_ruling_set algorithm(unidirectional_path.s, dist_rulers, 2);
-			timer timer("algorithmus");
+			regular_ruling_set algorithm(unidirectional_path.s, dist_rulers, 1);
 			algorithm.start(comm);
-			timer.finalize(comm, ruling_set + " " + std::to_string(comm.size()) + " " + argv[2] + " " + argv[3]);
 		}
 		else if (ruling_set2.compare(argv[1]) == 0)
 		{
 			std::int32_t num_local_vertices = atoi(argv[2]);
 			std::int32_t dist_rulers = atoi(argv[3]);
-			timer timer("algorithmus");
-			std::vector<std::int64_t> s = generate_regular_successor_vector(num_local_vertices);
-			timer.finalize(comm, "ende");
+			std::vector<std::uint64_t> s = generate_regular_successor_vector(num_local_vertices);
 			regular_ruling_set2 algorithm(s, dist_rulers);
 			algorithm.start(comm);
 		}
@@ -96,9 +92,7 @@ int main(int argc, char* argv[]) {
 			unidirectional_path unidirectional_path = generate_unidirectional_path(num_global_vertices);
 
 			regular_pointer_doubling algorithm(unidirectional_path.s, comm);
-			timer timer("algorithmus");
 			algorithm.start(comm);
-			timer.finalize(comm, pointer_doubling+ " " + std::to_string(comm.size()) + " " + argv[2]);
 		}
 		else if (sequential.compare(argv[1]) == 0 && mpi_size == 1)
 		{
@@ -106,9 +100,7 @@ int main(int argc, char* argv[]) {
 			unidirectional_path unidirectional_path = generate_unidirectional_path(num_global_vertices);
 
 			sequential_list_ranking algorithm(unidirectional_path.s);
-			timer timer("algorithmus");
 			algorithm.start(comm);
-			timer.finalize(comm, sequential + " " + std::to_string(comm.size()) + " " + argv[2]);
 		}
 		else 
 		{
@@ -121,17 +113,16 @@ int main(int argc, char* argv[]) {
 	
 }
 
-
 //every PE has same number of vertices
-std::vector<std::int64_t> generate_regular_successor_vector(std::int64_t num_local_vertices)
+std::vector<std::uint64_t> generate_regular_successor_vector(std::uint64_t num_local_vertices)
 {
 	
 	kagen::KaGen gen(MPI_COMM_WORLD);
-	std::vector<std::int64_t> s(num_local_vertices);
-	std::int64_t num_global_vertices = mpi_size * num_local_vertices;
+	std::vector<std::uint64_t> s(num_local_vertices);
+	std::uint64_t num_global_vertices = mpi_size * num_local_vertices;
 	auto path = gen.GenerateDirectedPath(num_global_vertices, true);
 	
-	for (std::int64_t i = 0; i < num_local_vertices; i++)
+	for (std::uint64_t i = 0; i < num_local_vertices; i++)
 		s[i] = i + mpi_rank * num_local_vertices;
 	
 	for (auto const& [src, dst]: path.edges)

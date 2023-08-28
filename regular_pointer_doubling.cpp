@@ -1,19 +1,21 @@
 #pragma once
 
-struct node_request {
-	std::int32_t node;
-	std::int32_t mst;
-};
 
-struct answer {
-	std::int32_t node;
-	std::int32_t r_of_mst;
-	std::int32_t mst_of_mst;
-	bool passive_of_mst;
-};
 
 class regular_pointer_doubling
 {
+	struct node_request {
+		std::int32_t node;
+		std::int32_t mst;
+	};
+
+	struct answer {
+		std::int32_t node;
+		std::int32_t r_of_mst;
+		std::int32_t mst_of_mst;
+		bool passive_of_mst;
+	};
+	
 	public:
 	
 	//if this PE has final node, then final node is set to a valid value, otherweise it is -1
