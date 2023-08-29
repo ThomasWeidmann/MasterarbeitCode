@@ -102,8 +102,8 @@ class timer
 					
 			}
 
-			output += "\"total time\":" + std::to_string(total_time) + "\n"
-			+ "\"computation\":" + std::to_string(_categories_times[0]) + "\n"
+			output += "\"total time\":" + std::to_string(total_time) + ",\n"
+			+ "\"computation\":" + std::to_string(_categories_times[0]) + ",\n"
 			+ "\"communication\":" + std::to_string(_categories_times[1]) + "\n},\n";
 			std::cout << output;
 			std::ofstream myfile;
