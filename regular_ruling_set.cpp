@@ -87,9 +87,10 @@ class regular_ruling_set
 				out_buffer[packet_index].destination = s[local_index];
 			}
 		}
-
+		
+		timer.switch_category(1);
 		auto recv = comm.alltoallv(kamping::send_buf(out_buffer), kamping::send_counts(num_packets_per_PE));
-	
+		timer.switch_category(0);
 		std::vector<packet> recv_buffer = recv.extract_recv_buffer();
 
 		std::vector<std::int32_t> mst(num_local_vertices, -1); //previous ruler
@@ -149,9 +150,10 @@ class regular_ruling_set
 				
 				}
 			}
-
+			
+			timer.switch_category(1);
 			auto recv = comm.alltoallv(kamping::send_buf(out_buffer), kamping::send_counts(num_packets_per_PE));
-
+			timer.switch_category(0);
 			recv_buffer = recv.extract_recv_buffer(); //wird der alte recv_buffer eigentlich gefreed?
 			
 		}
@@ -162,7 +164,9 @@ class regular_ruling_set
 		
 		std::vector<std::int32_t> send_num_not_reached_nodes(1, num_local_vertices - num_reached_nodes);
 		std::vector<std::int32_t> recv_num_not_reached_nodes;
+		timer.switch_category(1);
 		comm.allgather(kamping::send_buf(send_num_not_reached_nodes), kamping::recv_buf(recv_num_not_reached_nodes));
+		timer.switch_category(0);
 		std::int32_t sum = -1; //weil der erste ruler auch not reached ist, aber nicht mitgezählt werden soll. sonst nur nicht ruler unreached
 		for (std::int32_t i = 0; i < size; i++)
 			sum+= recv_num_not_reached_nodes[i];
@@ -214,7 +218,10 @@ class regular_ruling_set
 	
 		std::vector<std::int32_t> all_results;
 		//falls dist_rulers << p, dann sollten results die benötigt werden requested werden und dann in eine lokale hasmap für effizienten zugriff geschrieben werden
+		timer.switch_category(1);
 		comm.allgather(kamping::send_buf(result), kamping::recv_buf(all_results));
+		timer.switch_category(0);
+
 		//jetzt müssen werte wiederhergestellt werden
 		//dafür müssen alle ruler auf alle PE verteilt werden
 		
@@ -243,9 +250,10 @@ class regular_ruling_set
 		
 		local_unreached_nodes.resize(local_unreached_nodes_index);
 		std::vector<node_packet> global_unreached_nodes; //das hier sind jetzt genau die nodes, die vor dem ersten ruler sind
-		
+		timer.switch_category(1);
 		comm.allgatherv(kamping::send_buf(local_unreached_nodes), kamping::recv_buf(global_unreached_nodes));
-		
+		timer.switch_category(0);
+
 		std::unordered_map<std::int32_t, std::int32_t> node_map; //node_map[source] = destination, für jeden unreached node (source,destination)
 		std::unordered_map<std::int32_t, std::int32_t> has_pred_map; //has_pred_map[source] = true, if any node source has any pred
 		std::int32_t start_node;

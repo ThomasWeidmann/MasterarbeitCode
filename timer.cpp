@@ -33,6 +33,19 @@ class timer
 		_names = std::vector<std::string>(1);
 		_names[0] = first_checkpoint;
 		
+		_categorial_timestep = get_time();
+		_category = 0; //
+		_categories = {"computation","communication"};
+		_categories_times = std::vector<std::uint64_t>(_categories.size(),0);
+	}
+	
+	void switch_category(std::uint64_t category)
+	{
+		std::uint64_t current_time = get_time();
+		_categories_times[_category] += current_time - _categorial_timestep;
+		_categorial_timestep = current_time;
+		_category = category;
+		
 	}
 	
 	void add_checkpoint(std::string checkpoint)
@@ -89,12 +102,15 @@ class timer
 					
 			}
 
-			output += "\"total time\":" + std::to_string(total_time) + "\n},\n";
+			output += "\"total time\":" + std::to_string(total_time) + "\n"
+			+ "\"computation\":" + std::to_string(_categories_times[0]) + "\n"
+			+ "\"communication\":" + std::to_string(_categories_times[1]) + "\n},\n";
 			std::cout << output;
 			std::ofstream myfile;
 			myfile.open ("results.txt",  std::ios::app);
 			myfile << output;
 			myfile.close();
+			
 		}
 		
 		
@@ -106,7 +122,12 @@ class timer
 	}
 
 	private:
-
+	std::uint64_t _category;
+	std::uint64_t _categorial_timestep;
+	std::vector<std::string> _categories;
+	std::vector<std::uint64_t> _categories_times;
+	
+	
 	std::vector<uint64_t> _times;
 	std::vector<std::string> _names;
 		
