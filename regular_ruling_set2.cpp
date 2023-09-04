@@ -1,5 +1,6 @@
 //this class is implemented like in the paper "ultimate parallel list ranking" to minimize number of communication steps in trade of local work
 
+#include "irregular_pointer_doubling.cpp"
 
 class regular_ruling_set2
 {
@@ -28,7 +29,8 @@ class regular_ruling_set2
 		num_local_vertices = s.size();
 		node_offset = rank * num_local_vertices;
 		
-		
+		timer timer("ruler_pakete_senden");
+
 		
 		//man kann ja wieder die ersten n/dist vielen nodes als ruler setzten. den ruler index speichern. wenn eine packet iteration durch ist, werden erreichte ruler gezählt und genau so viele neue ruler gemacht, in dem rulerindex erhöhrt wird. Dadruch wird nur ein einziges mal extra iteriert
 		std::uint64_t out_buffer_size = num_local_vertices/dist_rulers;
@@ -84,6 +86,8 @@ class regular_ruling_set2
 		std::iota(mst.begin(),mst.end(),node_offset); 
 		std::vector<std::uint64_t> del(num_local_vertices,0);
 		
+		timer.add_checkpoint("pakete_verfolgen");
+
 		for (std::uint64_t iteration = 0; iteration < dist_rulers + 3; iteration++)
 		{
 			/*
@@ -93,8 +97,9 @@ class regular_ruling_set2
 			std::cout << std::endl;*/
 			
 			
-			
+			timer.switch_category(1);
 			std::vector<packet> recv_buffer = comm.alltoallv(kamping::send_buf(out_buffer), kamping::send_counts(num_packets_per_PE)).extract_recv_buffer();
+			timer.switch_category(0);
 			std::fill(num_packets_per_PE.begin(), num_packets_per_PE.end(), 0);
 			
 			
@@ -191,10 +196,14 @@ class regular_ruling_set2
 			if (rank == 0)  std::cout << "iteration " << iteration << " with left " << num_local_vertices - num_nodes_reached << std::endl;
 			*/
 		}
-	
+		
+		timer.add_checkpoint("rekursion_vorbereiten");
+
 		//now just the global starting node is unreached, this node is also always a ruler
 		std::vector<std::uint64_t> num_local_vertices_per_PE;
+		timer.switch_category(1);
 		comm.allgather(kamping::send_buf(local_rulers.size()), kamping::recv_buf(num_local_vertices_per_PE));
+		timer.switch_category(0);
 		std::vector<std::uint64_t> prefix_sum_num_vertices_per_PE(size + 1,0);
 		for (std::uint32_t i = 1; i < size + 1; i++)
 		{
@@ -205,20 +214,19 @@ class regular_ruling_set2
 		std::vector<std::uint64_t> map_ruler_to_its_index(num_local_vertices);
 		std::vector<std::uint64_t> s_rec(local_rulers.size());
 		std::vector<std::uint64_t> r_rec(local_rulers.size());
+		std::vector<std::uint32_t> targetPEs_rec(local_rulers.size());
 	
-		/*
-		std::vector<std::uint64_t> requests(local_rulers.size());
 		
+		std::vector<std::uint64_t> requests(local_rulers.size());
 		std::fill(num_packets_per_PE.begin(), num_packets_per_PE.end(), 0);
-
 		for (std::uint64_t i = 0; i < local_rulers.size(); i++)
 		{
 			map_ruler_to_its_index[local_rulers[i]] = i;
 			std::int32_t targetPE = calculate_targetPE(mst[local_rulers[i]]);
+			targetPEs_rec[i] = targetPE;
 			num_packets_per_PE[targetPE]++;
 		}
 		calculate_send_displacements_and_reset_num_packets_per_PE(send_displacements, num_packets_per_PE);
-		
 		for (std::uint64_t i = 0; i < local_rulers.size(); i++)
 		{
 			std::int32_t targetPE = calculate_targetPE(mst[local_rulers[i]]);
@@ -226,24 +234,78 @@ class regular_ruling_set2
 			requests[packet_index] = mst[local_rulers[i]];
 		}
 		
+		timer.switch_category(1);
 		auto recv = comm.alltoallv(kamping::send_buf(requests), kamping::send_counts(num_packets_per_PE));
+		timer.switch_category(0);
 		std::vector<std::uint64_t> recv_requests = recv.extract_recv_buffer();
 		
 		
-		std::vector<std::uint64_t> send_answers(recv_requests.size());
+		//answers können inplace in requests eingetragen werden
 		for (std::uint64_t i = 0; i < recv_requests.size(); i++)
 		{
-			send_answers[i] = map_ruler_to_its_index[recv_requests[i].global_ruler_index-node_offset] + prefix_sum_num_vertices_per_PE[rank];
+			recv_requests[i] = map_ruler_to_its_index[recv_requests[i]-node_offset] + prefix_sum_num_vertices_per_PE[rank];
+		}
+		timer.switch_category(1);
+		std::vector<std::uint64_t> recv_answers = comm.alltoallv(kamping::send_buf(recv_requests), kamping::send_counts(recv.extract_recv_counts())).extract_recv_buffer();
+		timer.switch_category(0);
+		std::fill(num_packets_per_PE.begin(), num_packets_per_PE.end(), 0);
+		for (std::uint64_t i = 0; i < local_rulers.size(); i++)
+		{
+			std::int32_t targetPE = calculate_targetPE(mst[local_rulers[i]]);
+			std::int32_t packet_index = send_displacements[targetPE] + num_packets_per_PE[targetPE]++;
+			s_rec[i] = recv_answers[packet_index];
+			r_rec[i] = del[local_rulers[i]];
 		}
 		
-		std::vector<answer> recv_answers = comm.alltoallv(kamping::send_buf(send_answers), kamping::send_counts(recv.extract_recv_counts())).extract_recv_buffer();
-				
-		std::cout << rank << " mit folgendem \n";
-		for (int i = 0; i<recv_answers.size(); i++)
-			std::cout << "(" << recv_answers[i].global_ruler_index << "," << recv_answers[i].recursive_global_ruler_index << "),";
-		std::cout << std::endl;
-		*/
-		return s;
+		timer.add_checkpoint("rekursion");
+
+		irregular_pointer_doubling algorithm(s_rec, r_rec, targetPEs_rec, prefix_sum_num_vertices_per_PE);
+		std::vector<std::uint64_t> ranks = algorithm.start(comm);
+		timer.add_checkpoint("finalen_ranks_berechnen");
+
+		
+		//rank[i + node_offset] = rank[mst[i]] + del[i], and requests[i] = rank[mst[i]] is goal
+		std::fill(num_packets_per_PE.begin(), num_packets_per_PE.end(), 0);
+		requests.resize(num_local_vertices);
+		for (std::uint64_t i = 0; i < num_local_vertices; i++)
+		{
+			std::int32_t targetPE = calculate_targetPE(mst[i]);
+			num_packets_per_PE[targetPE]++;
+		}
+		calculate_send_displacements_and_reset_num_packets_per_PE(send_displacements, num_packets_per_PE);
+		for (std::uint64_t i = 0; i < num_local_vertices; i++)
+		{
+			std::int32_t targetPE = calculate_targetPE(mst[i]);
+			std::uint64_t packet_index = send_displacements[targetPE] + num_packets_per_PE[targetPE]++;
+			requests[packet_index] = mst[i];
+		}
+		
+		timer.switch_category(1);
+		auto recv2 = comm.alltoallv(kamping::send_buf(requests), kamping::send_counts(num_packets_per_PE));
+		timer.switch_category(0);
+		recv_requests = recv2.extract_recv_buffer();
+		num_packets_per_PE = recv2.extract_recv_counts();
+		for (std::uint64_t i = 0; i < recv_requests.size(); i++)
+		{
+			recv_requests[i] = ranks[map_ruler_to_its_index[recv_requests[i] - node_offset]];
+		}
+		
+		timer.switch_category(1);
+		recv_answers = comm.alltoallv(kamping::send_buf(recv_requests), kamping::send_counts(num_packets_per_PE)).extract_recv_buffer();
+		timer.switch_category(0);
+		std::fill(num_packets_per_PE.begin(), num_packets_per_PE.end(), 0);
+		
+		for (std::uint64_t i = 0; i < num_local_vertices; i++)
+		{
+			std::int32_t targetPE = calculate_targetPE(mst[i]);
+			std::uint64_t packet_index = send_displacements[targetPE] + num_packets_per_PE[targetPE]++;
+			del[i] = size * num_local_vertices - 1 - (del[i] + recv_answers[packet_index]);
+		}
+		
+		timer.finalize(comm, num_local_vertices, dist_rulers);
+
+		
+		return del;
 	
 	}
 	
@@ -316,7 +378,7 @@ class regular_ruling_set2
 	}
 	
  
-	void calculate_send_displacements_and_reset_num_packets_per_PE(std::vector<std::int32_t>& send_displacements, std::vector<std::int32_t>& num_packets_per_PE)
+	void calculate_send_displacements_and_reset_num_packets_per_PE(std::vector<std::int32_t>& send_displacements, std::vector<std::int32_t	>& num_packets_per_PE)
 	{
 		send_displacements[0]=0;
 		for (std::int32_t i = 1; i < size + 1; i++)
