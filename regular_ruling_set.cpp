@@ -44,7 +44,8 @@ class regular_ruling_set
 		
 		
 		
-		
+		std::vector<std::string> categories = {"local_work", "communication", "test"};
+		timer timer("ruler_pakete_senden", categories, "local_work");
 		
 		
 		size = comm.size();
@@ -86,9 +87,10 @@ class regular_ruling_set
 				out_buffer[packet_index].destination = s[local_index];
 			}
 		}
-		
+		timer.switch_category("communication");
 		auto recv = comm.alltoallv(kamping::send_buf(out_buffer), kamping::send_counts(num_packets_per_PE));
 		std::vector<packet> recv_buffer = recv.extract_recv_buffer();
+		timer.switch_category("local_work");
 
 		std::vector<std::int32_t> mst(num_local_vertices, -1); //previous ruler
 		std::vector<std::int32_t> del(num_local_vertices, -1); //dist to previous ruler
@@ -96,7 +98,8 @@ class regular_ruling_set
 		std::int32_t num_reached_nodes = 0;
 		bool more_nodes_reached = false;
 		
-	
+		timer.add_checkpoint("pakete_verfolgen");
+
 		std::int32_t max_iteration = distance_rulers * std::log(num_global_vertices);
 		std::int32_t iteration=0;
 		while (iteration++ < max_iteration || any_PE_has_work(comm, more_nodes_reached))
@@ -146,18 +149,25 @@ class regular_ruling_set
 				
 				}
 			}
-			
+			timer.switch_category("communication");
+		
 			auto recv = comm.alltoallv(kamping::send_buf(out_buffer), kamping::send_counts(num_packets_per_PE));
 			recv_buffer = recv.extract_recv_buffer(); //wird der alte recv_buffer eigentlich gefreed?
-			
-		}
+			timer.switch_category("local_work");
 		
+		}
+		timer.add_checkpoint("rekursion_vorbereiten");
+
 		
 		//wir müssen noch anfangsknoten zählen und dann die gesamtzahl als rank des final rulers setzten
 		
 		std::vector<std::int32_t> send_num_not_reached_nodes(1, num_local_vertices - num_reached_nodes);
 		std::vector<std::int32_t> recv_num_not_reached_nodes;
+		timer.switch_category("communication");
+		
 		comm.allgather(kamping::send_buf(send_num_not_reached_nodes), kamping::recv_buf(recv_num_not_reached_nodes));
+		timer.switch_category("local_work");
+
 		std::int32_t sum = -1; //weil der erste ruler auch not reached ist, aber nicht mitgezählt werden soll. sonst nur nicht ruler unreached
 		for (std::int32_t i = 0; i < size; i++)
 			sum+= recv_num_not_reached_nodes[i];
@@ -185,7 +195,8 @@ class regular_ruling_set
 			r_rec[local_index] = del[local_index];
 		}
 	
-		
+		timer.add_checkpoint("rekursion");
+
 		std::vector<std::int32_t> result;
 		if (num_iterations == 1)
 		{
@@ -197,7 +208,8 @@ class regular_ruling_set
 			regular_ruling_set_rec algorithm(s_rec, r_rec, local_index_final_node, distance_rulers);
 			result = algorithm.start(comm);
 		}
-		
+		timer.add_checkpoint("finalen_ranks_berechnen");
+
 		
 		for (std::int32_t local_index = 0; local_index < num_local_rulers; local_index++)
 		{
@@ -207,7 +219,10 @@ class regular_ruling_set
 	
 		std::vector<std::int32_t> all_results;
 		//falls dist_rulers << p, dann sollten results die benötigt werden requested werden und dann in eine lokale hasmap für effizienten zugriff geschrieben werden
+		timer.switch_category("communication");
+		
 		comm.allgather(kamping::send_buf(result), kamping::recv_buf(all_results));
+		timer.switch_category("local_work");
 
 		//jetzt müssen werte wiederhergestellt werden
 		//dafür müssen alle ruler auf alle PE verteilt werden
@@ -237,7 +252,10 @@ class regular_ruling_set
 		
 		local_unreached_nodes.resize(local_unreached_nodes_index);
 		std::vector<node_packet> global_unreached_nodes; //das hier sind jetzt genau die nodes, die vor dem ersten ruler sind
+		timer.switch_category("communication");
+
 		comm.allgatherv(kamping::send_buf(local_unreached_nodes), kamping::recv_buf(global_unreached_nodes));
+		timer.switch_category("local_work");
 
 		std::unordered_map<std::int32_t, std::int32_t> node_map; //node_map[source] = destination, für jeden unreached node (source,destination)
 		std::unordered_map<std::int32_t, std::int32_t> has_pred_map; //has_pred_map[source] = true, if any node source has any pred
@@ -267,7 +285,8 @@ class regular_ruling_set
 			node_rank--;
 			node = node_map[node];
 		}
-		
+		timer.finalize(comm, num_local_vertices, distance_rulers);
+
 	
 	/*
 		std::cout << rank << " mit result array:\n";

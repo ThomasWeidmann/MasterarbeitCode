@@ -74,7 +74,7 @@ int main(int argc, char* argv[]) {
 			std::int32_t dist_rulers = atoi(argv[3]);
 			unidirectional_path unidirectional_path = generate_unidirectional_path(num_global_vertices);
 
-			regular_ruling_set algorithm(unidirectional_path.s, dist_rulers, 1);
+			regular_ruling_set algorithm(unidirectional_path.s, dist_rulers, 2);
 			algorithm.start(comm);
 		}
 		else if (ruling_set2.compare(argv[1]) == 0)

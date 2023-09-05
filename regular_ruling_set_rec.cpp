@@ -45,7 +45,7 @@ class regular_ruling_set_rec
 	std::vector<std::int32_t> start(kamping::Communicator<>& comm)
 	{
 		
-		std::cout << "rekursuion\n";
+	
 		
 		
 		
