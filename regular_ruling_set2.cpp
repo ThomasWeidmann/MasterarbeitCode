@@ -7,7 +7,7 @@ class regular_ruling_set2
 	struct packet{
 		std::uint64_t ruler_source;
 		std::uint64_t destination;
-		std::uint64_t distance;
+		std::uint32_t distance;
 	};
 
 	
@@ -29,7 +29,8 @@ class regular_ruling_set2
 		num_local_vertices = s.size();
 		node_offset = rank * num_local_vertices;
 		
-		timer timer("ruler_pakete_senden");
+		std::vector<std::string> categories = {"local_work", "communication", "test"};
+		timer timer("ruler_pakete_senden", categories, "local_work");
 
 		
 		//man kann ja wieder die ersten n/dist vielen nodes als ruler setzten. den ruler index speichern. wenn eine packet iteration durch ist, werden erreichte ruler gezählt und genau so viele neue ruler gemacht, in dem rulerindex erhöhrt wird. Dadruch wird nur ein einziges mal extra iteriert
@@ -97,9 +98,9 @@ class regular_ruling_set2
 			std::cout << std::endl;*/
 			
 			
-			timer.switch_category(1);
+			timer.switch_category("communication");
 			std::vector<packet> recv_buffer = comm.alltoallv(kamping::send_buf(out_buffer), kamping::send_counts(num_packets_per_PE)).extract_recv_buffer();
-			timer.switch_category(0);
+			timer.switch_category("local_work");
 			std::fill(num_packets_per_PE.begin(), num_packets_per_PE.end(), 0);
 			
 			
@@ -119,6 +120,8 @@ class regular_ruling_set2
 				}
 
 			}
+			
+			
 			
 			//select num_rulers_to_send_packages new rulers if possible
 			std::uint64_t num_rulers_to_send_packages = out_buffer_size > num_forwarded_packages ? out_buffer_size - num_forwarded_packages : 0;
@@ -142,35 +145,36 @@ class regular_ruling_set2
 				
 			}
 			
+
 			calculate_send_displacements_and_reset_num_packets_per_PE(send_displacements, num_packets_per_PE);
 			out_buffer.resize(send_displacements[size]); 
 			//now packets are written
-			for (packet& packet: recv_buffer)
+			
+			timer.switch_category("test"); //diese for schleife braucht ca. 30% des kompletten algorithmus und 65% des steps "pakete senden"
+			for (packet& packet: recv_buffer) //vlt compileranweisung, dass schleife oft ausgeführt wird?
 			{
 				std::uint64_t local_index = packet.destination - node_offset;
 				mst[local_index] = packet.ruler_source;
-				del[local_index] = packet.distance;
+				del[local_index] = packet.distance;//ich könnte beide arrays zusammenlegen
 				
-				if (iteration == 1 && rank == 0) 
+				
+				//das könnte auch in eine bit-operation umgewandelt werden
+				if (!is_final(local_index) && !is_ruler(local_index)) //if kosten auch viel zeit, aber da führt glaube kein weg vorbei...
 				{
-				
-				}
-				
-				if (!is_final(local_index) && !is_ruler(local_index))
-				{
-					std::int32_t targetPE = calculate_targetPE(s[local_index]);
+					std::int32_t targetPE = calculate_targetPE(s[local_index]); //targetPE mit shift berechnen, division kostet viel zeit
 					std::int32_t packet_index = send_displacements[targetPE] + num_packets_per_PE[targetPE]++;
 					
 					
 					
-					out_buffer[packet_index].ruler_source = packet.ruler_source;
-					out_buffer[packet_index].destination = unmask(s[local_index]);
+					out_buffer[packet_index].ruler_source = packet.ruler_source; 
+					out_buffer[packet_index].destination = unmask(s[local_index]); //hier kann man den local index schicken, das spart platz
 					out_buffer[packet_index].distance = packet.distance + 1;
 					
 				}	
 
 			}
-			
+			timer.switch_category("local_work");
+
 			
 			for (std::uint64_t i = 0; i < rulers_to_send_packages.size(); i++)
 			{
@@ -201,9 +205,9 @@ class regular_ruling_set2
 
 		//now just the global starting node is unreached, this node is also always a ruler
 		std::vector<std::uint64_t> num_local_vertices_per_PE;
-		timer.switch_category(1);
+		timer.switch_category("communication");
 		comm.allgather(kamping::send_buf(local_rulers.size()), kamping::recv_buf(num_local_vertices_per_PE));
-		timer.switch_category(0);
+		timer.switch_category("local_work");
 		std::vector<std::uint64_t> prefix_sum_num_vertices_per_PE(size + 1,0);
 		for (std::uint32_t i = 1; i < size + 1; i++)
 		{
@@ -234,9 +238,10 @@ class regular_ruling_set2
 			requests[packet_index] = mst[local_rulers[i]];
 		}
 		
-		timer.switch_category(1);
+		timer.switch_category("communication");
 		auto recv = comm.alltoallv(kamping::send_buf(requests), kamping::send_counts(num_packets_per_PE));
-		timer.switch_category(0);
+		timer.switch_category("local_work");
+
 		std::vector<std::uint64_t> recv_requests = recv.extract_recv_buffer();
 		
 		
@@ -245,9 +250,9 @@ class regular_ruling_set2
 		{
 			recv_requests[i] = map_ruler_to_its_index[recv_requests[i]-node_offset] + prefix_sum_num_vertices_per_PE[rank];
 		}
-		timer.switch_category(1);
+		timer.switch_category("communication");
 		std::vector<std::uint64_t> recv_answers = comm.alltoallv(kamping::send_buf(recv_requests), kamping::send_counts(recv.extract_recv_counts())).extract_recv_buffer();
-		timer.switch_category(0);
+		timer.switch_category("local_work");
 		std::fill(num_packets_per_PE.begin(), num_packets_per_PE.end(), 0);
 		for (std::uint64_t i = 0; i < local_rulers.size(); i++)
 		{
@@ -280,9 +285,9 @@ class regular_ruling_set2
 			requests[packet_index] = mst[i];
 		}
 		
-		timer.switch_category(1);
+		timer.switch_category("communication");
 		auto recv2 = comm.alltoallv(kamping::send_buf(requests), kamping::send_counts(num_packets_per_PE));
-		timer.switch_category(0);
+		timer.switch_category("local_work");
 		recv_requests = recv2.extract_recv_buffer();
 		num_packets_per_PE = recv2.extract_recv_counts();
 		for (std::uint64_t i = 0; i < recv_requests.size(); i++)
@@ -290,9 +295,9 @@ class regular_ruling_set2
 			recv_requests[i] = ranks[map_ruler_to_its_index[recv_requests[i] - node_offset]];
 		}
 		
-		timer.switch_category(1);
+		timer.switch_category("communication");
 		recv_answers = comm.alltoallv(kamping::send_buf(recv_requests), kamping::send_counts(num_packets_per_PE)).extract_recv_buffer();
-		timer.switch_category(0);
+		timer.switch_category("local_work");
 		std::fill(num_packets_per_PE.begin(), num_packets_per_PE.end(), 0);
 		
 		for (std::uint64_t i = 0; i < num_local_vertices; i++)

@@ -24,7 +24,7 @@ class timer
 {
 	public:
 	
-	timer(std::string first_checkpoint)
+	timer(std::string first_checkpoint, std::vector<std::string> categories, std::string start_category)
 	{
 
 		_times = std::vector<uint64_t>(1);
@@ -33,18 +33,21 @@ class timer
 		_names = std::vector<std::string>(1);
 		_names[0] = first_checkpoint;
 		
-		_categorial_timestep = get_time();
-		_category = 0; //
-		_categories = {"computation","communication"};
-		_categories_times = std::vector<std::uint64_t>(_categories.size(),0);
+		current_category = start_category;
+		category_timestamp = get_time();
+		
+		map = std::unordered_map<std::string, uint64_t>();
+		for (int i = 0; i < categories.size(); i++)
+			map[categories[i]] = 0;
+		
 	}
 	
-	void switch_category(std::uint64_t category)
+	void switch_category(std::string category)
 	{
 		std::uint64_t current_time = get_time();
-		_categories_times[_category] += current_time - _categorial_timestep;
-		_categorial_timestep = current_time;
-		_category = category;
+		map[current_category] = map[current_category] +  current_time - category_timestamp;
+		category_timestamp = current_time;
+		current_category = category;
 		
 	}
 	
@@ -102,9 +105,22 @@ class timer
 					
 			}
 
-			output += "\"total time\":" + std::to_string(total_time) + ",\n"
-			+ "\"computation\":" + std::to_string(_categories_times[0]) + ",\n"
-			+ "\"communication\":" + std::to_string(_categories_times[1]) + "\n},\n";
+			output += "\"total time\":" + std::to_string(total_time) + ",\n";
+			
+			std::string all_categories = "[";
+			for (const auto& [key, value] : map)
+			{
+				all_categories += "\"" + key + "\",";
+				
+				output += "\"" + key + "\":" + std::to_string(value) + ",\n";
+			}
+			all_categories.pop_back();
+			all_categories += "]";
+			
+			output += "\"categories\":" + all_categories + "\n},\n";
+			
+			
+			
 			std::cout << output;
 			std::ofstream myfile;
 			myfile.open ("results.txt",  std::ios::app);
@@ -122,10 +138,10 @@ class timer
 	}
 
 	private:
-	std::uint64_t _category;
-	std::uint64_t _categorial_timestep;
-	std::vector<std::string> _categories;
-	std::vector<std::uint64_t> _categories_times;
+	std::string current_category;
+	std::uint64_t category_timestamp;
+	std::unordered_map<std::string, uint64_t> map;
+	
 	
 	
 	std::vector<uint64_t> _times;
