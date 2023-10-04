@@ -62,8 +62,9 @@ class tree_regular_ruling_set2 //this is for trees
 			edges[packet_index].source = i + node_offset;
 			edges[packet_index].destination = s[i];
 		}
-	
 		
+	
+
 		
 		auto recv = comm.alltoallv(kamping::send_buf(edges), kamping::send_counts(num_packets_per_PE)).extract_recv_buffer();
 	
@@ -83,6 +84,8 @@ class tree_regular_ruling_set2 //this is for trees
 			std::uint64_t target_node = recv[i].destination - node_offset;
 			std::uint64_t packet_index = bounds[target_node] + edges_per_node[target_node]++;
 			turned_edges[packet_index] = recv[i].source;
+	
+			
 		}
 		/*
 		//print for testing
@@ -106,7 +109,6 @@ class tree_regular_ruling_set2 //this is for trees
 	
 	std::vector<std::uint64_t> start(kamping::Communicator<>& comm)
 	{
-					
 
 		std::uint64_t expected_num_packets = num_local_vertices/comm_rounds;
 		std::vector<packet> out_buffer(0);
@@ -165,7 +167,10 @@ class tree_regular_ruling_set2 //this is for trees
 		std::vector<std::uint64_t> del(num_local_vertices,0);
 	
 
-		for (std::uint64_t iteration = 0; iteration <= comm_rounds; iteration++)
+		//for (std::uint64_t iteration = 0; iteration <= comm_rounds; iteration++)
+			
+		bool work_left = true;
+		while (any_PE_has_work(comm, work_left))
 		{
 			/*
 			std::cout << rank << " in iteration " << iteration << " with following packages:\n";
@@ -177,10 +182,12 @@ class tree_regular_ruling_set2 //this is for trees
 			std::vector<packet> recv_buffer = comm.alltoallv(kamping::send_buf(out_buffer), kamping::send_counts(num_packets_per_PE)).extract_recv_buffer();
 			std::fill(num_packets_per_PE.begin(), num_packets_per_PE.end(), 0);
 			
+			work_left = recv_buffer.size() > 0;
 			
 			std::uint64_t num_forwarded_packages = 0;
 			for (packet& packet: recv_buffer)
 			{
+				
 				std::uint64_t local_index = packet.destination - node_offset;
 				
 				
@@ -228,7 +235,8 @@ class tree_regular_ruling_set2 //this is for trees
 				std::uint64_t local_index = packet.destination - node_offset;
 				mst[local_index] = packet.ruler_source;
 				del[local_index] = packet.distance;
-								
+				
+				
 				
 				if (!is_ruler(local_index))
 				{
@@ -472,6 +480,17 @@ class tree_regular_ruling_set2 //this is for trees
 		return "(" + std::to_string(packet.ruler_source) + "," + std::to_string(packet.destination) + "," + std::to_string(packet.distance) + ")";
 	}
 	
+	bool any_PE_has_work(kamping::Communicator<>& comm, bool this_PE_has_work)
+	{
+		std::int32_t work = this_PE_has_work;
+		std::vector<std::int32_t> send(1,work);
+		std::vector<std::int32_t> recv;
+		comm.allgather(kamping::send_buf(send), kamping::recv_buf(recv));
+		
+		for (std::int32_t i = 0; i < size; i++)
+			work += recv[i];
+		return work > 0;
+	}
 	
 	void mark_as_ruler(std::uint64_t local_index)
 	{
