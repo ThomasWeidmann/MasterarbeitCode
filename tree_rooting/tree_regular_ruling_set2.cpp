@@ -17,6 +17,9 @@ class tree_regular_ruling_set2 //this is for trees
 	
 	tree_regular_ruling_set2(std::vector<std::uint64_t>& s, std::uint64_t comm_rounds, kamping::Communicator<>& comm)
 	{
+		std::vector<std::string> categories = {"local_work", "communication"};
+		timer timer("graph_umdrehen", categories, "local_work");
+		
 		size = comm.size();
 		rank = comm.rank();
 		num_local_vertices = s.size();
@@ -28,7 +31,7 @@ class tree_regular_ruling_set2 //this is for trees
 		edges = adj_arr.edges;
 		bounds = adj_arr.bounds;
 		
-		start(comm);
+		start(comm, timer);
 	}
 	
 	//all edges will be turn around, therefore we have indegree 1 and outdegree can be any integer. Additionally adj_arr will have no self edges
@@ -107,8 +110,9 @@ class tree_regular_ruling_set2 //this is for trees
 	}
 	
 	
-	std::vector<std::uint64_t> start(kamping::Communicator<>& comm)
+	std::vector<std::uint64_t> start(kamping::Communicator<>& comm, timer timer)
 	{
+		timer.add_checkpoint("ruler_pakete_senden");
 
 		std::uint64_t expected_num_packets = num_local_vertices/comm_rounds;
 		std::vector<packet> out_buffer(0);
@@ -168,7 +172,8 @@ class tree_regular_ruling_set2 //this is for trees
 	
 
 		//for (std::uint64_t iteration = 0; iteration <= comm_rounds; iteration++)
-			
+		timer.add_checkpoint("pakete_verfolgen");
+
 		bool work_left = true;
 		while (any_PE_has_work(comm, work_left))
 		{
@@ -278,7 +283,8 @@ class tree_regular_ruling_set2 //this is for trees
 			}
 			
 		}	
-		
+		timer.add_checkpoint("rekursion_vorbereiten");
+
 		/*
 		for (int i = 0; i<num_local_vertices; i++)
 			std::cout << "final: mst[" << i + node_offset << "]=" << mst[i] << ", del[" << i+node_offset << "]=" << del[i] << (is_ruler(i)?" sruler\n":"\n");
@@ -342,10 +348,12 @@ class tree_regular_ruling_set2 //this is for trees
 		for (int i = 0; i < local_rulers.size(); i++)
 			std::cout << i + prefix_sum_num_vertices_per_PE[rank] << " s_rec:" << s_rec[i] << ", r_rec:" << r_rec[i] << std::endl;
 		*/
-		
+		timer.add_checkpoint("rekursion");
+
 		tree_irregular_pointer_doubling recursion(s_rec, r_rec, targetPEs_rec, prefix_sum_num_vertices_per_PE, comm);
 		std::fill(num_packets_per_PE.begin(), num_packets_per_PE.end(), 0);
-		
+		timer.add_checkpoint("finalen_ranks_berechnen");
+
 		for (std::uint64_t i = 0; i < num_local_vertices; i++)
 		{
 			std::int32_t targetPE = calculate_targetPE(mst[i]);
@@ -434,38 +442,14 @@ class tree_regular_ruling_set2 //this is for trees
 			results[local_index].distance = recv_ruler_answers[i].distance + del[local_index];
 		}
 		
+		timer.finalize(comm, num_local_vertices, comm_rounds);
+
+		/*
 		for (std::uint64_t i = 0; i < num_local_vertices; i++)
 			std::cout << i + node_offset << " has distance " << results[i].distance << " of its root " << results[i].root << std::endl;
-		
-		return edges;/*
-		std::vector<answer> answers(recv_requests.size());
-		for (std::uint64_t i = 0; i < recv_requests.size(); i++)
-		{
-			//test
-			if (rank == 1)
-				std::cout << recv_requests[i] <<"," << recursion.q[map_ruler_to_its_index[recv_requests[i] - node_offset]] <<  std::endl;
-			answers[i].distance = recursion.r[map_ruler_to_its_index[recv_requests[i] - node_offset]];
-			answers[i].root = local_rulers[recursion.q[map_ruler_to_its_index[recv_requests[i] - node_offset]]];
-			
-		}
-		std::cout << rank << "\n";
-		for (int i = 0; i < recv_requests.size(); i++)
-			std::cout << "(" << recv_requests[i] << ",(" << answers[i].distance << "," << answers[i].root << ")),";
-		std::cout << std::endl;
+		*/
 		return edges;
 		
-		recv_answers = comm.alltoallv(kamping::send_buf(recv_requests), kamping::send_counts(num_packets_per_PE)).extract_recv_buffer();
-		std::fill(num_packets_per_PE.begin(), num_packets_per_PE.end(), 0);
-		
-		for (std::uint64_t i = 0; i < num_local_vertices; i++)
-		{
-			std::int32_t targetPE = calculate_targetPE(mst[i]);
-			std::uint64_t packet_index = send_displacements[targetPE] + num_packets_per_PE[targetPE]++;
-			std::cout << i + node_offset << ", del=" << del[i] << ", " << recv_answers[packet_index] << std::endl;
-			del[i] = size * num_local_vertices - 1 - (del[i] + recv_answers[packet_index]);
-		}
-		return edges;
-	*/
 	}
 	
 	
