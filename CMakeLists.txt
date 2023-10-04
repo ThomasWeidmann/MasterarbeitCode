@@ -3,15 +3,20 @@ project(cmake_test)
 
 find_package(MPI REQUIRED)
 
+set(CMAKE_BUILD_TYPE Release)
 set(CMAKE_CXX_STANDARD 20)
    
 add_executable(Code main.cpp)
 
 target_link_libraries(Code PUBLIC MPI::MPI_CXX)
 
+set(KAGEN_USE_SPARSEHASH OFF)
 
 add_subdirectory(KaGen)
 target_link_libraries(Code PUBLIC KaGen::KaGen)
 
 add_subdirectory(kamping)
 target_link_libraries(Code PUBLIC kamping::kamping)
+
+
+target_compile_options(Code PUBLIC -O3 -march=native)
