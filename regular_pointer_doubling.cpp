@@ -54,8 +54,8 @@ class regular_pointer_doubling
 	
 	std::vector<std::int32_t> start(kamping::Communicator<>& comm)
 	{
-		
-		
+		std::vector<std::string> categories = {"local_work", "communication"};
+		timer timer("ruler_pakete_senden", categories, "local_work");
 		
 		size = comm.size();
 		rank = comm.rank();
@@ -142,7 +142,8 @@ class regular_pointer_doubling
 			}
 	
 		}
-		
+		timer.finalize(comm, num_local_vertices, 0);
+
 		/*
 		std::cout << rank << " mit rank array:\n";
 		for (int i = 0; i < num_local_vertices; i++)
