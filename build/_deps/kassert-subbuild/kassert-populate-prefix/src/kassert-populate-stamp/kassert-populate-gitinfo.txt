@@ -1,3 +1,0 @@
-repository='https://github.com/kamping-site/kassert.git'
-module=''
-tag='origin'
