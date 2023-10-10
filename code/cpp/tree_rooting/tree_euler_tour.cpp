@@ -1,6 +1,9 @@
 /*
 This class calculates from a given sucessor array of a regular tree with the euler tour tree rooting
 */
+
+#include "../list_ranking/irregular_ruling_set2.cpp"
+
 class tree_euler_tour
 {
 
@@ -233,7 +236,8 @@ class tree_euler_tour
 			targetPEs[j] = all_edges[j] / num_local_vertices; 
 		
 		
-		irregular_pointer_doubling algorithm(s_edges,all_edges_weights,targetPEs,prefix_sum_num_edges_per_PE);
+		//irregular_pointer_doubling algorithm(s_edges,all_edges_weights,targetPEs,prefix_sum_num_edges_per_PE);
+		irregular_ruling_set2 algorithm(s_edges, all_edges_weights, targetPEs, 1000, prefix_sum_num_edges_per_PE);
 		std::vector<std::int64_t> ranks = algorithm.start(comm);
 		
 		std::vector<std::int64_t> final_ranks(num_local_vertices);
