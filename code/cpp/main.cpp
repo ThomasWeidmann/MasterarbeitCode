@@ -23,6 +23,7 @@
 #include "timer.cpp"
 #include "generator.cpp"
 #include "test.cpp"
+#include "mpi_init.cpp"
 
 #include "list_ranking/regular_ruling_set.cpp"
 #include "list_ranking/regular_pointer_doubling.cpp"
@@ -31,8 +32,8 @@
 
 
 
-#include "tree_rooting/tree_regular_ruling_set2.cpp"
-#include "tree_rooting/euler_tour.cpp"
+#include "tree_rooting/wood_regular_ruling_set2.cpp"
+
 #include "tree_rooting/tree_euler_tour.cpp"
 
 int mpi_rank, mpi_size;
@@ -69,6 +70,7 @@ int main(int argc, char* argv[]) {
 	std::string pointer_doubling = "pointer_doubling";
 	std::string tree_rooting = "tree_rooting";
 	std::string euler_tour = "euler_tour";
+	std::string init_mpi = "init_mpi";
 	
 	if (argc < 2)
 	{
@@ -118,9 +120,11 @@ int main(int argc, char* argv[]) {
 		else if (tree_rooting.compare(argv[1]) == 0)
 		{
 			std::int32_t num_local_vertices = atoi(argv[2]);
-			std::vector<std::uint64_t> tree_vector = generator::generate_regular_wood_vector(num_local_vertices, comm);
+			std::vector<std::uint64_t> tree_vector = generator::generate_regular_tree_vector(num_local_vertices, comm);
 			std::int32_t dist_rulers = atoi(argv[3]);
-			tree_regular_ruling_set2(tree_vector, dist_rulers, comm);
+			std::vector<std::int64_t> d = wood_regular_ruling_set2(tree_vector, dist_rulers, comm).result_dist;
+			
+			test::regular_test(comm, tree_vector, d);
 		}
 		else if (euler_tour.compare(argv[1]) == 0)
 		{
@@ -130,6 +134,10 @@ int main(int argc, char* argv[]) {
 			std::vector<std::int64_t> d = tree_euler_tour(comm, tree_vector).start(comm, tree_vector);
 			test::regular_test(comm, tree_vector, d);
 		}
+		else if (init_mpi.compare(argv[1]) == 0)
+		{
+			//mpi_init(comm);
+		}	
 		else 
 		{
 			error(std::string(argv[1]) + " is not a name of an algorithm or wrong parameters");

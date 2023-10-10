@@ -1,5 +1,5 @@
 
-class tree_irregular_pointer_doubling
+class wood_irregular_pointer_doubling
 {
 	struct node_request {
 		std::uint64_t node;
@@ -18,7 +18,7 @@ class tree_irregular_pointer_doubling
 	
 	public:
 	
-	tree_irregular_pointer_doubling(std::vector<std::uint64_t>& s, std::vector<std::uint64_t>& r, std::vector<std::uint32_t>& targetPEs, std::vector<std::uint64_t>& prefix_sum_num_vertices_per_PE, kamping::Communicator<>& comm)
+	wood_irregular_pointer_doubling(std::vector<std::uint64_t>& s, std::vector<std::uint64_t>& r, std::vector<std::uint32_t>& targetPEs, std::vector<std::uint64_t>& prefix_sum_num_vertices_per_PE, kamping::Communicator<>& comm)
 	{
 		rank = comm.rank();
 		size = comm.size();

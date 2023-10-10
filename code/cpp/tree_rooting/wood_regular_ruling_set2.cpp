@@ -1,6 +1,6 @@
-#include "tree_irregular_pointer_doubling.cpp"
+#include "wood_irregular_pointer_doubling.cpp"
 
-class tree_regular_ruling_set2 //this is for trees
+class wood_regular_ruling_set2 //this is for trees
 {
 	struct packet{
 		std::uint64_t ruler_source;
@@ -13,9 +13,14 @@ class tree_regular_ruling_set2 //this is for trees
 		std::vector<std::uint64_t> bounds;
 	};
 	
+	struct result{
+			std::uint64_t root;
+			std::int64_t distance;
+	};
+	
 	public:
 	
-	tree_regular_ruling_set2(std::vector<std::uint64_t>& s, std::uint64_t comm_rounds, kamping::Communicator<>& comm)
+	wood_regular_ruling_set2(std::vector<std::uint64_t>& s, std::uint64_t comm_rounds, kamping::Communicator<>& comm)
 	{
 		std::vector<std::string> categories = {"local_work", "communication"};
 		timer timer("graph_umdrehen", categories, "local_work");
@@ -110,7 +115,7 @@ class tree_regular_ruling_set2 //this is for trees
 	}
 	
 	
-	std::vector<std::uint64_t> start(kamping::Communicator<>& comm, timer timer)
+	void start(kamping::Communicator<>& comm, timer timer)
 	{
 		
 		
@@ -353,9 +358,15 @@ class tree_regular_ruling_set2 //this is for trees
 		*/
 		timer.add_checkpoint("rekursion");
 
-		tree_irregular_pointer_doubling recursion(s_rec, r_rec, targetPEs_rec, prefix_sum_num_vertices_per_PE, comm);
+		wood_irregular_pointer_doubling recursion(s_rec, r_rec, targetPEs_rec, prefix_sum_num_vertices_per_PE, comm);
 		std::fill(num_packets_per_PE.begin(), num_packets_per_PE.end(), 0);
 		timer.add_checkpoint("finalen_ranks_berechnen");
+
+
+
+
+
+
 
 		for (std::uint64_t i = 0; i < num_local_vertices; i++)
 		{
@@ -433,16 +444,16 @@ class tree_regular_ruling_set2 //this is for trees
 		}
 		auto recv_ruler_answers = comm.alltoallv(kamping::send_buf(answer_ruler), kamping::send_counts(num_packets_per_PE)).extract_recv_buffer(); //size = num_local_vertices
 		
-		struct result{
-			std::uint64_t root;
-			std::uint64_t distance;
-		};
-		std::vector<result> results(num_local_vertices);
+		
+		
+	
+		result_dist = std::vector<std::int64_t>(num_local_vertices);
+		result_root = std::vector<std::uint64_t>(num_local_vertices);
 		for (std::uint64_t i = 0; i < num_local_vertices; i++)
 		{
 			std::uint64_t local_index = recv_ruler_answers[i].node - node_offset;
-			results[local_index].root = recv_ruler_answers[i].root;
-			results[local_index].distance = recv_ruler_answers[i].distance + del[local_index];
+			result_root[local_index] = recv_ruler_answers[i].root;
+			result_dist[local_index] = recv_ruler_answers[i].distance + del[local_index];
 		}
 		
 		timer.finalize(comm, num_local_vertices, comm_rounds);
@@ -451,7 +462,6 @@ class tree_regular_ruling_set2 //this is for trees
 		for (std::uint64_t i = 0; i < num_local_vertices; i++)
 			std::cout << i + node_offset << " has distance " << results[i].distance << " of its root " << results[i].root << std::endl;
 		*/
-		return edges;
 		
 	}
 	
@@ -535,12 +545,15 @@ class tree_regular_ruling_set2 //this is for trees
 	}
 	
 	
-	private:
+	public:
 	std::uint64_t node_offset;
 	std::uint64_t num_local_vertices;
 	std::uint64_t rank, size;
 	std::vector<std::uint64_t> edges;
 	std::vector<std::uint64_t> bounds;
+	
+	std::vector<std::int64_t> result_dist;
+	std::vector<std::uint64_t> result_root;
 	
 	std::uint64_t comm_rounds;
 };
