@@ -15,10 +15,10 @@ class tree_euler_tour
 		node_offset = rank * num_local_vertices;
 		
 		
-		tree_rooting(comm, s);
+
 	}
 	
-	std::vector<std::uint64_t> tree_rooting(kamping::Communicator<>& comm, std::vector<std::uint64_t>& s)
+	std::vector<std::int64_t> start(kamping::Communicator<>& comm, std::vector<std::uint64_t>& s)
 	{
 		std::int64_t local_root = -1;
 		
@@ -205,7 +205,7 @@ class tree_euler_tour
 			all_edges_weights[result] = 0;
 		}
 		
-		
+		/*
 		std::cout << "PE " << rank << " with s arr: ";
 		for (int i = 0; i < num_local_vertices; i++)
 			std::cout << s[i] << ",";
@@ -225,23 +225,28 @@ class tree_euler_tour
 		std::cout << "PE " << rank << " with all_edges_weights arr: ";
 		for (int i = 0; i < all_edges_weights.size(); i++)
 			std::cout << all_edges_weights[i] << ",";
-		std::cout << std::endl;
+		std::cout << std::endl;*/
 		
 		std::vector<std::uint32_t> targetPEs(num_local_edges);
 		for (std::uint64_t i = 0; i < num_local_vertices; i++)
 		for (std::uint64_t j = bounds[i]; j < bounds[i+1]; j++)
 			targetPEs[j] = all_edges[j] / num_local_vertices; 
 		
-		/*
-		irregular_pointer_doubling algorithm(s_edges,all_edges_weights,targetPEs,prefix_sum_num_edges_per_PE);
-		std::vector<std::uint64_t> ranks = algorithm.start(comm);
 		
+		irregular_pointer_doubling algorithm(s_edges,all_edges_weights,targetPEs,prefix_sum_num_edges_per_PE);
+		std::vector<std::int64_t> ranks = algorithm.start(comm);
+		
+		std::vector<std::int64_t> final_ranks(num_local_vertices);
+		for (std::uint64_t i = 0; i < num_local_vertices; i++)
+			final_ranks[i] = ranks[bounds[i]];
+		
+		/*
 		std::cout << "PE " << rank << " with rank array:";
-		for (int i = 0; i < num_local_edges; i++)
-			std::cout << ranks[i] << ",";
+		for (int i = 0; i < final_ranks.size(); i++)
+			std::cout << final_ranks[i] << ",";
 		std::cout << std::endl;*/
 		
-		return all_edges;
+		return final_ranks;
 		
 		
 		

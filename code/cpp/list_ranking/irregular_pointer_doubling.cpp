@@ -8,7 +8,7 @@ class irregular_pointer_doubling
 
 	struct answer {
 		std::uint64_t node;
-		std::uint64_t r_of_mst;
+		std::int64_t r_of_mst;
 		std::uint64_t mst_of_mst;
 		std::uint32_t targetPE_of_mst;
 		bool passive_of_mst;
@@ -18,7 +18,7 @@ class irregular_pointer_doubling
 	
 	public:
 	
-	irregular_pointer_doubling(std::vector<std::uint64_t>& s, std::vector<std::uint64_t> r, std::vector<std::uint32_t> targetPEs, std::vector<std::uint64_t> prefix_sum_num_vertices_per_PE)
+	irregular_pointer_doubling(std::vector<std::uint64_t>& s, std::vector<std::int64_t> r, std::vector<std::uint32_t> targetPEs, std::vector<std::uint64_t> prefix_sum_num_vertices_per_PE)
 	{
 		this->s = s;
 		this->r = r;
@@ -27,7 +27,7 @@ class irregular_pointer_doubling
 	}
 	
 	
-	std::vector<std::uint64_t> start(kamping::Communicator<>& comm)
+	std::vector<std::int64_t> start(kamping::Communicator<>& comm)
 	{
 		rank = comm.rank();
 		size = comm.size();
@@ -144,7 +144,7 @@ class irregular_pointer_doubling
 	std::uint64_t num_global_vertices;
 	std::uint64_t rank, size;
 	std::vector<std::uint64_t> s;
-	std::vector<std::uint64_t> r;
+	std::vector<std::int64_t> r;
 	std::vector<std::uint32_t> targetPEs;
 	std::vector<std::uint64_t> prefix_sum_num_vertices_per_PE;
 };

@@ -2,14 +2,14 @@ class test
 {
 	public:
 	
-	static void regular_test(kamping::Communicator<>& comm, std::vector<std::uint64_t>& s, std::vector<std::uint64_t>& d)
+	static void regular_test(kamping::Communicator<>& comm, std::vector<std::uint64_t>& s, std::vector<std::int64_t>& d)
 	{
 		std::uint64_t rank = comm.rank();
 		std::uint64_t size = comm.size();
 		std::uint64_t num_local_vertices = s.size();
 		std::uint64_t node_offset = rank * num_local_vertices;
 		
-		std::vector<std::uint64_t> r(num_local_vertices, 1);
+		std::vector<std::int64_t> r(num_local_vertices, 1);
 		
 		for (std::uint64_t i = 0; i < num_local_vertices; i++)
 			if (s[i] == i + node_offset)
@@ -20,7 +20,7 @@ class test
 	}
 	
 	//s is sucessor vector which must  have same dimension on every PE, r is the weight of the edges, obviously same dimension as s, and d is the result vector, also same dimension as the others
-	static void regular_test(kamping::Communicator<>& comm, std::vector<std::uint64_t>& s, std::vector<std::uint64_t>& r, std::vector<std::uint64_t>& d)
+	static void regular_test(kamping::Communicator<>& comm, std::vector<std::uint64_t>& s, std::vector<std::int64_t>& r, std::vector<std::int64_t>& d)
 	{
 		start_test(comm);
 		
@@ -57,7 +57,7 @@ class test
 			num_packets_per_PE[targetPE]++;	
 		}
 		calculate_send_displacements_and_reset_num_packets_per_PE(comm, send_displacements, num_packets_per_PE);
-		std::vector<std::uint64_t> request(num_local_vertices);
+		std::vector<std::int64_t> request(num_local_vertices);
 		for (std::uint64_t i = 0; i < num_local_vertices; i++)
 		{
 			std::int32_t targetPE = s[i] / num_local_vertices;
@@ -67,7 +67,7 @@ class test
 		}
 		
 		auto recv = comm.alltoallv(kamping::send_buf(request), kamping::send_counts(num_packets_per_PE));
-		std::vector<std::uint64_t> recv_request = recv.extract_recv_buffer();
+		std::vector<std::int64_t> recv_request = recv.extract_recv_buffer();
 		
 		//request können wieder inplace ausgefüllt werden
 		for (std::uint64_t i = 0; i < recv_request.size(); i++)

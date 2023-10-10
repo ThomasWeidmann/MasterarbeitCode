@@ -22,7 +22,7 @@ class regular_ruling_set2
 	}
 	
 	
-	std::vector<std::uint64_t> start(kamping::Communicator<>& comm)
+	std::vector<std::int64_t> start(kamping::Communicator<>& comm)
 	{
 		rank = comm.rank();
 		size = comm.size();
@@ -85,7 +85,7 @@ class regular_ruling_set2
 		
 		std::vector<std::uint64_t> mst(num_local_vertices);
 		std::iota(mst.begin(),mst.end(),node_offset); 
-		std::vector<std::uint64_t> del(num_local_vertices,0);
+		std::vector<std::int64_t> del(num_local_vertices,0);
 		
 		timer.add_checkpoint("pakete_verfolgen");
 
@@ -217,7 +217,7 @@ class regular_ruling_set2
 		
 		std::vector<std::uint64_t> map_ruler_to_its_index(num_local_vertices);
 		std::vector<std::uint64_t> s_rec(local_rulers.size());
-		std::vector<std::uint64_t> r_rec(local_rulers.size());
+		std::vector<std::int64_t> r_rec(local_rulers.size());
 		std::vector<std::uint32_t> targetPEs_rec(local_rulers.size());
 	
 		
@@ -265,7 +265,7 @@ class regular_ruling_set2
 		timer.add_checkpoint("rekursion");
 
 		irregular_pointer_doubling algorithm(s_rec, r_rec, targetPEs_rec, prefix_sum_num_vertices_per_PE);
-		std::vector<std::uint64_t> ranks = algorithm.start(comm);
+		std::vector<std::int64_t> ranks = algorithm.start(comm);
 		timer.add_checkpoint("finalen_ranks_berechnen");
 
 		
@@ -309,7 +309,7 @@ class regular_ruling_set2
 		
 		timer.finalize(comm, num_local_vertices, dist_rulers);
 
-		
+	
 		return del;
 	
 	}

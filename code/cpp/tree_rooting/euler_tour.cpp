@@ -106,14 +106,14 @@ class euler_tour2
 		for (std::uint64_t j = bounds[i]; j < bounds[i+1]; j++)
 			targetPEs[j] = all_edges[j] / num_local_vertices; 
 		
-		
+		/*auskommentieren, da ich ja gerade von uints auf ints wechsele bei den ranks und rückgabewerten
 		irregular_pointer_doubling algorithm(s,r,targetPEs,prefix_sum_num_edges_per_PE);
 		std::vector<std::uint64_t> ranks = algorithm.start(comm);
 		
 		std::cout << "PE " << rank << " with rank array:";
 		for (int i = 0; i < num_local_edges; i++)
 			std::cout << ranks[i] << ",";
-		std::cout << std::endl;
+		std::cout << std::endl;*/
 		
 		
 	}

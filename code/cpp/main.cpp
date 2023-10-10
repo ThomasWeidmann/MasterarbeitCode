@@ -93,7 +93,7 @@ int main(int argc, char* argv[]) {
 			std::int32_t dist_rulers = atoi(argv[3]);
 			std::vector<std::uint64_t> s = generator::generate_regular_successor_vector(num_local_vertices, comm);
 			regular_ruling_set2 algorithm(s, dist_rulers);
-			std::vector<std::uint64_t> d = algorithm.start(comm);
+			std::vector<std::int64_t> d = algorithm.start(comm);
 			
 			test::regular_test(comm, s, d);
 
@@ -127,7 +127,8 @@ int main(int argc, char* argv[]) {
 			std::uint64_t num_local_vertices = atoi(argv[2]);
 			std::vector<std::uint64_t> tree_vector = generator::generate_regular_tree_vector(num_local_vertices, comm);
 
-			tree_euler_tour(comm, tree_vector);
+			std::vector<std::int64_t> d = tree_euler_tour(comm, tree_vector).start(comm, tree_vector);
+			test::regular_test(comm, tree_vector, d);
 		}
 		else 
 		{
