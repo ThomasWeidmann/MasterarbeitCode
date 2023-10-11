@@ -42,6 +42,9 @@ class wood_regular_ruling_set2 //this is for trees
 	//all edges will be turn around, therefore we have indegree 1 and outdegree can be any integer. Additionally adj_arr will have no self edges
 	adj_arr calculate_adj_arr(std::vector<std::uint64_t>& s, kamping::Communicator<>& comm, std::uint64_t node_offset)
 	{
+		
+		
+		
 		struct edge{
 			std::uint64_t source;
 			std::uint64_t destination;
@@ -97,7 +100,7 @@ class wood_regular_ruling_set2 //this is for trees
 		}
 		/*
 		//print for testing
-		std::cout << "s: ";
+		std::cout << "PE " << rank << " with s: ";
 		for (int i = 0; i < s.size(); i++)
 			std::cout << s[i] << ",";
 		std::cout << "\nbounds: ";
@@ -295,7 +298,7 @@ class wood_regular_ruling_set2 //this is for trees
 
 		/*
 		for (int i = 0; i<num_local_vertices; i++)
-			std::cout << "final: mst[" << i + node_offset << "]=" << mst[i] << ", del[" << i+node_offset << "]=" << del[i] << (is_ruler(i)?" sruler\n":"\n");
+			std::cout << "final: mst[" << i + node_offset << "]=" << mst[i] << ", del[" << i+node_offset << "]=" << del[i] << (is_ruler(i)?" is_ruler\n":"\n");
 		*/
 		std::vector<std::uint64_t> num_local_vertices_per_PE;
 		comm.allgather(kamping::send_buf(local_rulers.size()), kamping::recv_buf(num_local_vertices_per_PE));
@@ -358,110 +361,59 @@ class wood_regular_ruling_set2 //this is for trees
 		*/
 		timer.add_checkpoint("rekursion");
 
-		wood_irregular_pointer_doubling recursion(s_rec, r_rec, targetPEs_rec, prefix_sum_num_vertices_per_PE, comm);
+		wood_irregular_pointer_doubling recursion(s_rec, r_rec, targetPEs_rec, prefix_sum_num_vertices_per_PE, comm, local_rulers);
 		std::fill(num_packets_per_PE.begin(), num_packets_per_PE.end(), 0);
 		timer.add_checkpoint("finalen_ranks_berechnen");
 
 
-
-
-
-
-
+		//TODO finalen ranks berechnen mit request und inplace answer mit recursion.local_rulers und damit bessere Zeit wie gestern. git reset --hard, wenn bei wood_irregular_pointer_doubling was falsch
 		for (std::uint64_t i = 0; i < num_local_vertices; i++)
 		{
 			std::int32_t targetPE = calculate_targetPE(mst[i]);
 			num_packets_per_PE[targetPE]++;
 		}
-		
 		calculate_send_displacements_and_reset_num_packets_per_PE(send_displacements, num_packets_per_PE);
-		//every node i now has a ruler as checkpoint in mst array aka mst[i]. We now want from mst[i] the distance to root and root
-		//there is one inderection needed to translate the recursive index of the root to the global index non recursive of the root
-		struct request{
-			std::uint64_t node;
-			std::uint64_t ruler;
-		};
-		std::vector<request> request_ruler(num_local_vertices);
+		std::vector<std::uint64_t> request(num_local_vertices);
 		for (std::uint64_t i = 0; i < num_local_vertices; i++)
 		{
 			std::int32_t targetPE = calculate_targetPE(mst[i]);
 			std::uint64_t packet_index = send_displacements[targetPE] + num_packets_per_PE[targetPE]++;
-			request_ruler[packet_index].ruler = mst[i];
-			request_ruler[packet_index].node = i + node_offset;
+			request[packet_index] = mst[i];
 		}
-		//first we send requests to mst[i], because only this PE knows the distance to root and root node from mst[i]
-		auto recv_request_ruler = comm.alltoallv(kamping::send_buf(request_ruler), kamping::send_counts(num_packets_per_PE)).extract_recv_buffer();
-		std::fill(num_packets_per_PE.begin(), num_packets_per_PE.end(), 0);
-		for (std::uint64_t i = 0; i < recv_request_ruler.size(); i++)
-		{
-			std::int32_t targetPE = recursion.targetPEs[map_ruler_to_its_index[recv_request_ruler[i].ruler - node_offset]];
-			num_packets_per_PE[targetPE]++;
-		}
-		calculate_send_displacements_and_reset_num_packets_per_PE(send_displacements, num_packets_per_PE);
-		struct forwarded_request{
-			std::uint64_t node;
-			std::uint64_t root; //this will be global but recursive index
-			std::uint64_t distance;
-		};
-		
-		std::vector<forwarded_request> request_ruler_forwarded(recv_request_ruler.size());
-		
-		for (std::uint64_t i = 0; i < recv_request_ruler.size(); i++)
-		{
-			std::int32_t targetPE = recursion.targetPEs[map_ruler_to_its_index[recv_request_ruler[i].ruler - node_offset]];
-			std::uint64_t packet_index = send_displacements[targetPE] + num_packets_per_PE[targetPE]++;
-			request_ruler_forwarded[packet_index].node = recv_request_ruler[i].node;
-			request_ruler_forwarded[packet_index].root = recursion.q[map_ruler_to_its_index[recv_request_ruler[i].ruler - node_offset]];
-			request_ruler_forwarded[packet_index].distance = recursion.r[map_ruler_to_its_index[recv_request_ruler[i].ruler - node_offset]];
-			
-			
-		}
-		auto recv_request_ruler_forwarded = comm.alltoallv(kamping::send_buf(request_ruler_forwarded), kamping::send_counts(num_packets_per_PE)).extract_recv_buffer();
-		std::fill(num_packets_per_PE.begin(), num_packets_per_PE.end(), 0);
-		for (std::uint64_t i = 0; i < recv_request_ruler_forwarded.size(); i++)
-		{
-			std::int32_t targetPE = calculate_targetPE(recv_request_ruler_forwarded[i].node);
-			num_packets_per_PE[targetPE]++;
-		}
-		calculate_send_displacements_and_reset_num_packets_per_PE(send_displacements, num_packets_per_PE);
-		struct answer{
-			std::uint64_t node;
-			std::uint64_t root; //this will be global index
-			std::uint64_t distance;
-		};
-		std::vector<answer> answer_ruler(recv_request_ruler_forwarded.size());
-		for (std::uint64_t i = 0; i < recv_request_ruler_forwarded.size(); i++)
-		{
-			std::int32_t targetPE = calculate_targetPE(recv_request_ruler_forwarded[i].node);
-			std::uint64_t packet_index = send_displacements[targetPE] + num_packets_per_PE[targetPE]++;
-			answer_ruler[packet_index].node = recv_request_ruler_forwarded[i].node;
-			answer_ruler[packet_index].distance = recv_request_ruler_forwarded[i].distance;
-			answer_ruler[packet_index].root = local_rulers[recv_request_ruler_forwarded[i].root - prefix_sum_num_vertices_per_PE[rank]] + node_offset;
-			/*
-			std::cout << rank << " bekommt request (node,root): (" << recv_request_ruler_forwarded[i].node << "," << recv_request_ruler_forwarded[i].root 
-			<< ") und wird weitergeleitet an " << targetPE << " mit : (" << answer_ruler[packet_index].node << "," 
-			<< answer_ruler[packet_index].root << ")" << std::endl;*/
-		}
-		auto recv_ruler_answers = comm.alltoallv(kamping::send_buf(answer_ruler), kamping::send_counts(num_packets_per_PE)).extract_recv_buffer(); //size = num_local_vertices
-		
-		
-		
+
 	
+		auto recv_request = comm.alltoallv(kamping::send_buf(request), kamping::send_counts(num_packets_per_PE));
+		std::vector<std::uint64_t> recv_request_buffer = recv_request.extract_recv_buffer();
+		
+		struct answer{
+			std::uint64_t global_root_index;
+			std::int64_t distance;
+		};
+		std::vector<answer> answers(recv_request_buffer.size());
+		for (std::uint64_t i = 0; i < recv_request_buffer.size(); i++)
+		{	
+			answers[i].global_root_index = recursion.local_rulers[map_ruler_to_its_index[recv_request_buffer[i] - node_offset]];
+			answers[i].distance = recursion.r[map_ruler_to_its_index[recv_request_buffer[i] - node_offset]];
+		}
+		auto recv_answers_buffer = comm.alltoallv(kamping::send_buf(answers), kamping::send_counts(recv_request.extract_recv_counts()))	.extract_recv_buffer();
+		std::fill(num_packets_per_PE.begin(), num_packets_per_PE.end(), 0);
+
 		result_dist = std::vector<std::int64_t>(num_local_vertices);
 		result_root = std::vector<std::uint64_t>(num_local_vertices);
+		
 		for (std::uint64_t i = 0; i < num_local_vertices; i++)
 		{
-			std::uint64_t local_index = recv_ruler_answers[i].node - node_offset;
-			result_root[local_index] = recv_ruler_answers[i].root;
-			result_dist[local_index] = recv_ruler_answers[i].distance + del[local_index];
+			std::int32_t targetPE = calculate_targetPE(mst[i]);
+			std::uint64_t packet_index = send_displacements[targetPE] + num_packets_per_PE[targetPE]++;
+
+			
+			result_root[i] = recv_answers_buffer[packet_index].global_root_index;
+			result_dist[i] = recv_answers_buffer[packet_index].distance + del[i];
+			
 		}
 		
 		timer.finalize(comm, num_local_vertices, comm_rounds);
 
-		/*
-		for (std::uint64_t i = 0; i < num_local_vertices; i++)
-			std::cout << i + node_offset << " has distance " << results[i].distance << " of its root " << results[i].root << std::endl;
-		*/
 		
 	}
 	

@@ -12,13 +12,14 @@ class wood_irregular_pointer_doubling
 		std::uint64_t mst_of_mst;
 		std::uint32_t targetPE_of_mst;
 		std::int64_t passive_of_mst;
+		std::uint64_t non_recursive_index_of_mst;
 	};
 	
 
 	
 	public:
 	
-	wood_irregular_pointer_doubling(std::vector<std::uint64_t>& s, std::vector<std::uint64_t>& r, std::vector<std::uint32_t>& targetPEs, std::vector<std::uint64_t>& prefix_sum_num_vertices_per_PE, kamping::Communicator<>& comm)
+	wood_irregular_pointer_doubling(std::vector<std::uint64_t>& s, std::vector<std::uint64_t>& r, std::vector<std::uint32_t>& targetPEs, std::vector<std::uint64_t>& prefix_sum_num_vertices_per_PE, kamping::Communicator<>& comm, std::vector<std::uint64_t>& local_rulers)
 	{
 		rank = comm.rank();
 		size = comm.size();
@@ -29,7 +30,7 @@ class wood_irregular_pointer_doubling
 		this->targetPEs = targetPEs;
 		this->prefix_sum_num_vertices_per_PE = prefix_sum_num_vertices_per_PE;
 		
-		
+		this->local_rulers = local_rulers;
 		
 		start(comm);
 	}
@@ -178,6 +179,7 @@ class wood_irregular_pointer_doubling
 				answers[i].mst_of_mst = q[local_index];
 				answers[i].targetPE_of_mst = targetPEs[local_index];
 				answers[i].passive_of_mst = passive[local_index];
+				answers[i].non_recursive_index_of_mst = local_rulers[local_index];
 			}
 		
 			std::vector<answer> recv_answers = comm.alltoallv(kamping::send_buf(answers), kamping::send_counts(num_packets_per_PE)).extract_recv_buffer();
@@ -193,13 +195,15 @@ class wood_irregular_pointer_doubling
 				r[local_index] = r[local_index] + recv_answers[i].r_of_mst;
 				passive[local_index] = recv_answers[i].passive_of_mst;
 				active_nodes -= passive[local_index];
+				local_rulers[local_index] = recv_answers[i].non_recursive_index_of_mst;
 			}
 			
 		}
 		
 		/*
+		std::cout << "recursion on PE " << rank << ":"; 
 		for (int i = 0; i< num_local_vertices; i++)
-			std::cout << i + node_offset << "," << q[i] << "," << r[i] << std::endl;
+			std::cout << i + node_offset << "," << q[i] << "," << r[i] << "," << local_rulers[i] << std::endl;
 		*/
 		
 		
@@ -238,4 +242,6 @@ class wood_irregular_pointer_doubling
 	std::vector<std::uint64_t> r;
 	std::vector<std::uint32_t> targetPEs;
 	std::vector<std::uint64_t> prefix_sum_num_vertices_per_PE;
+	
+	std::vector<std::uint64_t> local_rulers;
 };
