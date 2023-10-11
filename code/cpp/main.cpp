@@ -23,7 +23,6 @@
 #include "timer.cpp"
 #include "generator.cpp"
 #include "test.cpp"
-#include "mpi_init.cpp"
 
 #include "list_ranking/regular_ruling_set.cpp"
 #include "list_ranking/regular_pointer_doubling.cpp"
@@ -86,8 +85,10 @@ int main(int argc, char* argv[]) {
 			std::int64_t dist_rulers = atoi(argv[3]);
 			std::vector<std::uint64_t> s = generator::generate_regular_successor_vector(num_local_vertices, comm);
 
-			regular_ruling_set algorithm(s, dist_rulers, 1);
-			algorithm.start(comm);
+			regular_ruling_set algorithm(s, dist_rulers, 2);
+			std::vector<std::int64_t> d = algorithm.start(comm);
+			
+			test::regular_test(comm, s, d);
 		}
 		else if (ruling_set2.compare(argv[1]) == 0)
 		{
@@ -136,7 +137,9 @@ int main(int argc, char* argv[]) {
 		}
 		else if (init_mpi.compare(argv[1]) == 0)
 		{
-			//mpi_init(comm);
+			std::vector<std::uint64_t> send_buf(comm.size(),std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count());
+			std::vector<std::int32_t> send_counts(comm.size(),1);
+			auto recv = comm.alltoallv(kamping::send_buf(send_buf), kamping::send_counts(send_counts)).extract_recv_buffer();
 		}	
 		else 
 		{

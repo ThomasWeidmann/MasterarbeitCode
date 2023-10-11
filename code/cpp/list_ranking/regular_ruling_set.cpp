@@ -39,7 +39,7 @@ class regular_ruling_set
 	}
 	
 	
-	void start(kamping::Communicator<>& comm)
+	std::vector<std::int64_t> start(kamping::Communicator<>& comm)
 	{
 		
 		
@@ -186,7 +186,7 @@ class regular_ruling_set
 			
 			
 		std::vector<std::uint64_t> s_rec(num_local_rulers);
-		std::vector<std::uint64_t> r_rec(num_local_rulers);
+		std::vector<std::int64_t> r_rec(num_local_rulers);
 		for (std::int64_t local_index = 0; local_index < num_local_rulers; local_index++)
 		{
 			std::int64_t next_ruler = mst[local_index];
@@ -197,7 +197,7 @@ class regular_ruling_set
 	
 		timer.add_checkpoint("rekursion");
 
-		std::vector<std::uint64_t> result;
+		std::vector<std::int64_t> result;
 		if (num_iterations == 1)
 		{
 			regular_pointer_doubling algorithm(s_rec, r_rec, local_index_final_node);
@@ -294,7 +294,7 @@ class regular_ruling_set
 			std::cout << result[i] << " ";
 		std::cout <<std::endl;
 */
-
+		return result;
 		
 	}
 	

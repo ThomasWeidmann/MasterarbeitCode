@@ -30,7 +30,7 @@ class regular_ruling_set_rec
 	
 	public:
 	
-	regular_ruling_set_rec(std::vector<std::uint64_t>& successors, std::vector<std::uint64_t>& ranks, std::uint64_t local_index_final, std::int32_t dist_rulers)
+	regular_ruling_set_rec(std::vector<std::uint64_t>& successors, std::vector<std::int64_t>& ranks, std::uint64_t local_index_final, std::int32_t dist_rulers)
 	{
 		s = successors;
 		r = ranks;
@@ -42,10 +42,8 @@ class regular_ruling_set_rec
 	}
 	
 	
-	std::vector<std::uint64_t> start(kamping::Communicator<>& comm)
+	std::vector<std::int64_t> start(kamping::Communicator<>& comm)
 	{
-		
-	
 		
 		
 		
@@ -59,9 +57,9 @@ class regular_ruling_set_rec
 		/*
 		std::cout << rank << " mit successor array:\n";
 		for (int i = 0; i < num_local_vertices; i++)
-			std::cout << s[i] << " ";
-		std::cout <<", rulers sind die ersten " << num_local_rulers << " nodes" << std::endl;
-		*/
+			std::cout <<"(" << s[i] << "," << r[i] << "),";
+		std::cout <<", rulers sind die ersten " << num_local_rulers << " nodes" << std::endl;*/
+		
 		std::vector<std::int32_t> num_packets_per_PE(size,0);
 		std::vector<std::int32_t> send_displacements(size + 1,0);
 		
@@ -97,8 +95,8 @@ class regular_ruling_set_rec
 	
 		std::vector<packet_rec> recv_buffer = recv.extract_recv_buffer();
 
-		std::vector<std::int32_t> mst(num_local_vertices, -1); //previous ruler
-		std::vector<std::int32_t> del(num_local_vertices, -1); //dist to previous ruler
+		std::vector<std::int64_t> mst(num_local_vertices, -1); //previous ruler
+		std::vector<std::int64_t> del(num_local_vertices, -1); //dist to previous ruler
 		
 		std::int32_t num_reached_nodes = 0;
 		bool more_nodes_reached = false;
@@ -138,6 +136,7 @@ class regular_ruling_set_rec
 				
 				mst[local_index] = packet.ruler_source;
 				del[local_index] = packet.ruler_distance;
+				 
 				
 				num_reached_nodes++;
 				more_nodes_reached = true;
@@ -161,11 +160,19 @@ class regular_ruling_set_rec
 		}
 		
 		//wir müssen noch die insgesamte distanz der anfangsknoten vor dem unreached ruler zählen und dann die gesamtzahl als rank setzten
+		/*	std::cout << rank << ":";
+		for (int local_index = 0; local_index < num_local_rulers; local_index++)
+			std::cout << local_index + node_offset << ": mst=" << mst[local_index] << ", del=" << del[local_index] << std::endl;
+*/
 		
+		std::int64_t sum_r = 0;
+		for (std::uint64_t local_index = 0; local_index < num_local_rulers; local_index++)
+			sum_r += r[local_index];
 		
 		std::int32_t local_partial_distance = 0;
 		for (std::int32_t local_index = num_local_rulers; local_index < num_local_vertices; local_index++)
 		{
+			sum_r += r[local_index];
 			if (mst[local_index] == -1)
 				local_partial_distance += r[local_index];
 		}
@@ -177,7 +184,12 @@ class regular_ruling_set_rec
 		for (std::int32_t i = 0; i < size; i++)
 			sum+= recv_partial_distance[i];
 	
-		
+		std::vector<std::int32_t> send_partial_sum_r(1, sum_r);
+		std::vector<std::int32_t> recv_partial_sum_r;
+		comm.allgather(kamping::send_buf(send_partial_sum_r), kamping::recv_buf(recv_partial_sum_r));
+		sum_r = 0; 
+		for (std::int32_t i = 0; i < size; i++)
+			sum_r+= recv_partial_sum_r[i];
 		
 		std::int32_t local_index_final_node_rec = -1;
 		for (std::int32_t local_index = 0; local_index < num_local_rulers; local_index++)
@@ -191,7 +203,7 @@ class regular_ruling_set_rec
 			
 			
 		std::vector<std::uint64_t> s_rec(num_local_rulers);
-		std::vector<std::uint64_t> r_rec(num_local_rulers);
+		std::vector<std::int64_t> r_rec(num_local_rulers);
 		for (std::int32_t local_index = 0; local_index < num_local_rulers; local_index++)
 		{
 			std::int32_t next_ruler = mst[local_index];
@@ -199,17 +211,26 @@ class regular_ruling_set_rec
 			s_rec[local_index] = next_ruler - next_ruler_PE * num_local_vertices + next_ruler_PE * num_local_rulers;
 			r_rec[local_index] = del[local_index];
 		}
+		
+	
+		/*
+		std::cout << rank << " mit s_r array:\n";
+		for (int i = 0; i < s_rec.size(); i++)
+			std::cout <<"(" << s_rec[i] << "," << r_rec[i] << "),";
+		std::cout <<", rulers sind die ersten " << num_local_rulers << " nodes" << std::endl;
+		*/
+		
 	
 		
 		regular_pointer_doubling algorithm(s_rec, r_rec, local_index_final_node_rec);
-		std::vector<std::uint64_t> result = algorithm.start(comm);
+		std::vector<std::int64_t> result = algorithm.start(comm);
 		for (std::int32_t local_index = 0; local_index < num_local_rulers; local_index++)
 		{
-			result[local_index] = num_global_vertices - 1 - result[local_index];
+			result[local_index] = sum_r  - result[local_index];
 		}
-		
 	
-		std::vector<std::int32_t> all_results;
+	
+		std::vector<std::int64_t> all_results;
 		
 		comm.allgather(kamping::send_buf(result), kamping::recv_buf(all_results));
 		//jetzt müssen werte wiederhergestellt werden
@@ -246,12 +267,14 @@ class regular_ruling_set_rec
 		
 		std::unordered_map<std::int32_t, std::int32_t> node_map; //node_map[source] = destination, für jeden unreached node (source,destination)
 		std::unordered_map<std::int32_t, std::int32_t> has_pred_map; //has_pred_map[source] = true, if any node source has any pred
+		std::unordered_map<std::int32_t, std::int32_t> r_map;
 		std::int32_t start_node;
 		
 		for (std::int32_t i = 0; i < global_unreached_nodes.size(); i++)
 		{
 			node_packet_rec node = global_unreached_nodes[i];
 			node_map[node.source] = node.destination;
+			r_map[node.source] = node.distance;
 			has_pred_map[node.destination] = true;
 		}
 		
@@ -264,12 +287,12 @@ class regular_ruling_set_rec
 			}
 		}
 		std::int32_t node = start_node;
-		std::int32_t node_rank = num_global_vertices - 1; //rank of final node, needs to be changed!
+		std::int32_t node_rank = sum_r; //rank of final node, needs to be changed!
 		while (node_map.contains(node))
 		{
 			if (calculate_targetPE(node) == rank)
 				result[node - node_offset] = node_rank;
-			node_rank--;
+			node_rank-= r_map[node];
 			node = node_map[node];
 		}
 		return result;
@@ -327,7 +350,7 @@ class regular_ruling_set_rec
 	
 	private: 
 	
-	std::vector<std::uint64_t> r;
+	std::vector<std::int64_t> r;
 	std::vector<std::uint64_t> s;
 	std::uint64_t num_local_vertices;
 	std::uint64_t num_local_rulers;

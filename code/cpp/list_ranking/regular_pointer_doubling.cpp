@@ -19,7 +19,7 @@ class regular_pointer_doubling
 	public:
 	
 	//if this PE has final node, then final node is set to a valid value, otherweise it is -1
-	regular_pointer_doubling(std::vector<std::uint64_t>& successors, std::vector<std::uint64_t>& ranks, std::uint64_t local_index_final_node)
+	regular_pointer_doubling(std::vector<std::uint64_t>& successors, std::vector<std::int64_t>& ranks, std::uint64_t local_index_final_node)
 	{
 		s = successors;
 		num_local_vertices = s.size();
@@ -40,7 +40,7 @@ class regular_pointer_doubling
 		q = s;
 		node_offset = num_local_vertices * comm.rank();
 		
-		r = std::vector<std::uint64_t>(num_local_vertices, 1);
+		r = std::vector<std::int64_t>(num_local_vertices, 1);
 		passive = std::vector<bool>(num_local_vertices, false);
 		
 		for (std::int32_t local_index = 0; local_index < num_local_vertices; local_index++)
@@ -52,7 +52,7 @@ class regular_pointer_doubling
 	}
 	
 	
-	std::vector<std::uint64_t> start(kamping::Communicator<>& comm)
+	std::vector<std::int64_t> start(kamping::Communicator<>& comm)
 	{
 		std::vector<std::string> categories = {"local_work", "communication"};
 		timer timer("ruler_pakete_senden", categories, "local_work");
@@ -173,7 +173,7 @@ class regular_pointer_doubling
 	std::uint64_t final_node;
 	std::vector<std::uint64_t> s;
 	std::vector<std::uint64_t> q;
-	std::vector<std::uint64_t> r;
+	std::vector<std::int64_t> r;
 	std::vector<bool> passive;
 	
 	std::int32_t rank;
