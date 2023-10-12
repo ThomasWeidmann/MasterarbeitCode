@@ -27,11 +27,14 @@ class timer
 	timer(std::string first_checkpoint, std::vector<std::string> categories, std::string start_category)
 	{
 
-		_times = std::vector<uint64_t>(1);
-		_times[0] =  get_time();
+		times = std::vector<uint64_t>(1);
+		times[0] =  get_time();
 
-		_names = std::vector<std::string>(1);
-		_names[0] = first_checkpoint;
+		names = std::vector<std::string>(1);
+		names[0] = first_checkpoint;
+		
+		info_values = std::vector<std::string>(0);
+		info_names = std::vector<std::string>(0);
 		
 		current_category = start_category;
 		category_timestamp = get_time();
@@ -51,83 +54,156 @@ class timer
 		
 	}
 	
-	void add_checkpoint(std::string checkpoint)
+	void add_info(kamping::Communicator<>& comm, std::string name, std::string value)
 	{
-		//better pushback
-
-		_times.push_back(get_time());
+		info_values.push_back(value);
+		info_names.push_back(name);
+		//std::vector<char> data(name.begin(), name.end());
+		//comm.gather(kamping::send_buf(data), kamping::recv_buf(recv), kamping::root(0));
 		
-		_names.push_back(checkpoint);
 	}
 	
-	void finalize(kamping::Communicator<>& comm, std::uint64_t num_local_vertices, std::uint64_t dist_rulers)
+	void add_checkpoint(std::string checkpoint)
 	{
-
-		_times.push_back(get_time());
-
-		using namespace kamping;
+		times.push_back(get_time());
+		names.push_back(checkpoint);
+	}
+	
+	
+	std::vector<std::string> split (const std::string &s, char delim) {
+		std::vector<std::string> result;
+		std::stringstream ss (s);
+		std::string item;
+		while (getline (ss, item, delim))
+			result.push_back (item);
+		return result;
+	}
+	
+	std::string quote(std::string input)
+	{
+		return "\"" + input + "\"";
+	}
+	
+	void finalize(kamping::Communicator<>& comm)
+	{	
+		//measure finish time instantly
+		times.push_back(get_time());
+		add_info(comm, "p", std::to_string(comm.size()));
 		
-		std::vector<uint64_t> relative_times(_names.size());
-		for (std::int32_t i = 0; i < _names.size(); i++)
+		std::string output = "{\n";
+		//first print total time
+		std::uint64_t total_time = times[times.size()-1] - times[0];
+		std::vector<std::uint64_t> total_times;
+		comm.gather(kamping::send_buf(total_time), kamping::recv_buf(total_times), kamping::root(0));
+		if (comm.rank() == 0)
 		{
-			relative_times[i] = _times[i+1] - _times[i];
+			output += quote("total_time") + ":[" + std::to_string(total_times[0]);
+			for (std::uint32_t i = 1; i < comm.size(); i++)
+				output += "," + std::to_string(total_times[i]);
+			output += "],\n";
 		}
 		
 		
-		std::vector<uint64_t> all_relative_times;
-	
-		comm.gather(send_buf(relative_times), recv_buf(all_relative_times), root(0));
-
+		//second print infos
+		std::string info_string = "";
+		for (std::uint32_t i = 0; i < info_values.size(); i++)
+			info_string += info_values[i] + ",";
+		std::vector<char> data(info_string.begin(), info_string.end());
+		std::vector<char> recv_data;
+		comm.gather(kamping::send_buf(data), kamping::recv_buf(recv_data), kamping::root(0));
 	
 		if (comm.rank() == 0)
 		{
-			std::string output = "{\n\"num_local_vertices\":" + std::to_string(num_local_vertices) + ",\n" ; 
-			output += "\"dist_rulers\":" + std::to_string(dist_rulers) + ",\n";
-			output += "\"p\":" + std::to_string(comm.size()) + ",\n";
+			std::vector<std::string> all_info_values = split(std::string(recv_data.begin(), recv_data.end()), ',');
 			
-			std::int32_t size = comm.size();
+			output += "info_names:[" + quote(info_names[0]);
+			for (std::uint32_t i = 1; i < info_names.size(); i++)
+				output += "," + quote(info_names[i]);
+			output += "],\n";
 			
-			std::int32_t total_time = get_time() - _times[0];
+			for (std::uint32_t i = 0; i < info_names.size(); i++)
+			{
+				output += quote(info_names[i]) + ":[";
+				for (std::uint32_t j = 0; j < comm.size(); j++)
+					output += all_info_values[i + j*info_names.size()] + ",";
+				output.pop_back();
+				output += "],\n";
+			}
+		}
+		
+	
+		//third print time steps	
+		std::vector<uint64_t> final_times(names.size());
+		for (std::int32_t i = 0; i < names.size(); i++)
+			final_times[i] = times[i+1] - times[i];
+		
+		
+		
+		std::vector<uint64_t> all_final_times;
+		comm.gather(kamping::send_buf(final_times), kamping::recv_buf(all_final_times), kamping::root(0));
+
+		if (comm.rank() == 0)
+		{
+			output += "time_step_names:[" + quote(names[0]);
+			for (std::uint32_t i = 1; i < names.size(); i++) //-1, damit total time nicht als time step gewählt wird
+				output += "," + quote(names[i]);
+			output += "],\n";
 			
-			std::vector<uint64_t> all_relative_times_from_one_checkpoint(size);
-			for (int i = 0; i < _names.size(); i++)
+			std::vector<uint64_t> all_final_times_from_one_checkpoint(comm.size());
+			for (int i = 0; i < names.size(); i++)
 			{
 				
-				for (int j = 0; j < size; j++)
-				{
-					all_relative_times_from_one_checkpoint[j] = all_relative_times[i + j*_names.size()];
-				}
+				for (int j = 0; j < comm.size(); j++)
+					all_final_times_from_one_checkpoint[j] = all_final_times[i + j*names.size()];
 				
-				output += "\"" + _names[i] + "\"" + ":[" + std::to_string(all_relative_times_from_one_checkpoint[0]);
-				for (int i = 1; i < size; i++)
-					output += "," + std::to_string(all_relative_times_from_one_checkpoint[i]);
-				output += "],\n";
-					
+				
+				output += "\"" + names[i] + "\"" + ":[" + std::to_string(all_final_times_from_one_checkpoint[0]);
+				for (int i = 1; i < comm.size(); i++)
+					output += "," + std::to_string(all_final_times_from_one_checkpoint[i]);
+				output += "],\n";	
 			}
-
-			output += "\"total time\":" + std::to_string(total_time) + ",\n";
 			
+		
+		}
+		
+		//third print categories
+		std::vector<uint64_t> all_categorial_times;
+		std::vector<uint64_t> local_categorial_times(0);
+		
+		for (const auto& [key, value] : map)
+			local_categorial_times.push_back(value);
+		comm.gather(kamping::send_buf(local_categorial_times), kamping::recv_buf(all_categorial_times), kamping::root(0));
+		if (comm.rank() == 0)
+		{
+			/*
 			std::string all_categories = "[";
 			for (const auto& [key, value] : map)
 			{
-				all_categories += "\"" + key + "\",";
-				
-				output += "\"" + key + "\":" + std::to_string(value) + ",\n";
+				all_categories += quote(key);
 			}
 			all_categories.pop_back();
 			all_categories += "]";
 			
-			output += "\"categories\":" + all_categories + "\n},\n";
+			output += quote("categories") + ":" + all_categories + ",\n";
+			for (int i = 0; i < local_categorial_times.size(); i++)
+			{
+				
+				for (int j = 0; j < comm.size(); j++)
+					outpu
+				all_final_times_from_one_checkpoint[j] = all_final_times[i + j*names.size()];
+			}*/
 			
-			
-			
+			output.pop_back();
+			output.pop_back();
+			output += "\n}\n,\n";
 			std::cout << output;
 			std::ofstream myfile;
 			myfile.open ("results.txt",  std::ios::app);
 			myfile << output;
 			myfile.close();
+		}	
 			
-		}
+		
 		
 		
 	}
@@ -142,10 +218,11 @@ class timer
 	std::uint64_t category_timestamp;
 	std::unordered_map<std::string, uint64_t> map;
 	
+	std::vector<std::string> info_names;
+	std::vector<std::string> info_values;
 	
-	
-	std::vector<uint64_t> _times;
-	std::vector<std::string> _names;
+	std::vector<uint64_t> times;
+	std::vector<std::string> names;
 		
 	
 };

@@ -23,6 +23,8 @@
 #include "timer.cpp"
 #include "generator.cpp"
 #include "test.cpp"
+#include "interfaces.cpp"
+//#include "grid_all_to_all.cpp"
 
 #include "list_ranking/regular_ruling_set.cpp"
 #include "list_ranking/regular_pointer_doubling.cpp"
@@ -64,7 +66,9 @@ int main(int argc, char* argv[]) {
 	kamping::Environment e;
 	kamping::Communicator<> comm;
 	std::string ruling_set = "ruling_set";
+	std::string ruling_set_rec = "ruling_set_rec";
 	std::string ruling_set2 = "ruling_set2";
+	std::string ruling_set2_rec = "ruling_set2_rec";
 	std::string sequential = "sequential";
 	std::string pointer_doubling = "pointer_doubling";
 	std::string tree_rooting = "tree_rooting";
@@ -85,8 +89,23 @@ int main(int argc, char* argv[]) {
 			std::int64_t dist_rulers = atoi(argv[3]);
 			std::vector<std::uint64_t> s = generator::generate_regular_successor_vector(num_local_vertices, comm);
 
-			regular_ruling_set algorithm(s, dist_rulers, 2);
-			std::vector<std::int64_t> d = algorithm.start(comm);
+			regular_ruling_set algorithm = regular_ruling_set(s, dist_rulers, 1);
+			
+			std::vector<std::int64_t> d = algorithm.start(comm, s);
+			
+			test::regular_test(comm, s, d);
+		}
+		else if (ruling_set_rec.compare(argv[1]) == 0)
+		{
+			
+			std::int64_t num_local_vertices = atoi(argv[2]);
+
+			std::int64_t dist_rulers = atoi(argv[3]);
+			std::vector<std::uint64_t> s = generator::generate_regular_successor_vector(num_local_vertices, comm);
+
+			regular_ruling_set algorithm = regular_ruling_set(s, dist_rulers, 2);
+			
+			std::vector<std::int64_t> d = algorithm.start(comm, s);
 			
 			test::regular_test(comm, s, d);
 		}
@@ -95,20 +114,33 @@ int main(int argc, char* argv[]) {
 			std::int32_t num_local_vertices = atoi(argv[2]);
 			std::int32_t dist_rulers = atoi(argv[3]);
 			std::vector<std::uint64_t> s = generator::generate_regular_successor_vector(num_local_vertices, comm);
-			regular_ruling_set2 algorithm(s, dist_rulers);
+			regular_ruling_set2 algorithm(s, dist_rulers, 1);
 			std::vector<std::int64_t> d = algorithm.start(comm);
 			
 			test::regular_test(comm, s, d);
 
 		}
+		else if (ruling_set2_rec.compare(argv[1]) == 0)
+		{
+			
+			std::int32_t num_local_vertices = atoi(argv[2]);
+			std::int32_t dist_rulers = atoi(argv[3]);
+			std::vector<std::uint64_t> s = generator::generate_regular_successor_vector(num_local_vertices, comm);
+			regular_ruling_set2 algorithm(s, dist_rulers, 2);
+			std::vector<std::int64_t> d = algorithm.start(comm);
+			
+			test::regular_test(comm, s, d);
+		}
 		else if (pointer_doubling.compare(argv[1]) == 0)
 		{
 			std::uint64_t num_local_vertices = atoi(argv[2]);
 
-			std::vector<std::uint64_t> s = generator::generate_regular_successor_vector(num_local_vertices, comm);
+			std::vector<std::uint64_t> s = generator::generate_regular_wood_vector(num_local_vertices, comm);
 			regular_pointer_doubling algorithm(s, comm);
 			
-			algorithm.start(comm);
+			std::vector<std::int64_t> d = algorithm.start(comm);
+			
+			//test::regular_test(comm, s, d);
 		}
 		else if (sequential.compare(argv[1]) == 0 && mpi_size == 1)
 		{
@@ -125,7 +157,7 @@ int main(int argc, char* argv[]) {
 			std::int32_t dist_rulers = atoi(argv[3]);
 			std::vector<std::int64_t> d = wood_regular_ruling_set2(tree_vector, dist_rulers, comm).result_dist;
 			
-			test::regular_test(comm, tree_vector, d);
+			//test::regular_test(comm, tree_vector, d);
 		}
 		else if (euler_tour.compare(argv[1]) == 0)
 		{
@@ -133,7 +165,7 @@ int main(int argc, char* argv[]) {
 			std::vector<std::uint64_t> tree_vector = generator::generate_regular_tree_vector(num_local_vertices, comm);
 
 			std::vector<std::int64_t> d = tree_euler_tour(comm, tree_vector).start(comm, tree_vector);
-			test::regular_test(comm, tree_vector, d);
+			//test::regular_test(comm, tree_vector, d);
 		}
 		else if (init_mpi.compare(argv[1]) == 0)
 		{
@@ -143,6 +175,21 @@ int main(int argc, char* argv[]) {
 		}	
 		else 
 		{
+			/*
+			struct test{
+				std::uint64_t i;
+				std::uint64_t j;
+			};
+			std::vector<test> testvector(4, {comm.rank(), comm.size()});
+			
+			grid_all_to_all<test> grid;
+			
+			std::vector<std::int32_t> send_counts(4,1);
+			std::vector<test> recv = grid.comm(comm, send_counts, testvector);
+			std::cout << comm.rank() << ":";
+			for (int i = 0; i < recv.size(); i++)
+				std::cout << "(" << recv[i].i << "," << recv[i].j << "),";
+			std::cout << std::endl;*/
 			error(std::string(argv[1]) + " is not a name of an algorithm or wrong parameters");
 		}
 	}

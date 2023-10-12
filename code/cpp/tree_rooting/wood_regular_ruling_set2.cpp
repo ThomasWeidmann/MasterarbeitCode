@@ -412,7 +412,7 @@ class wood_regular_ruling_set2 //this is for trees
 			
 		}
 		
-		timer.finalize(comm, num_local_vertices, comm_rounds);
+		timer.finalize(comm);
 
 		
 	}

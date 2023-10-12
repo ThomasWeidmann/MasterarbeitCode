@@ -8,14 +8,14 @@
 #include "../timer.cpp"
 #include "regular_pointer_doubling.cpp"
 #include "regular_ruling_set_rec.cpp"
-
+#include "../interfaces.cpp"
 
 
 /*
 here every PE must have the same number of nodes aka the length of successors is the same
 also dist_rulers >= 3
 */
-class regular_ruling_set
+class regular_ruling_set : public list_ranking
 {
 	struct packet {
 		std::int64_t ruler_source;
@@ -39,7 +39,7 @@ class regular_ruling_set
 	}
 	
 	
-	std::vector<std::int64_t> start(kamping::Communicator<>& comm)
+	std::vector<std::int64_t> start(kamping::Communicator<>& comm, std::vector<std::uint64_t>& successors)
 	{
 		
 		
@@ -285,7 +285,7 @@ class regular_ruling_set
 			node_rank--;
 			node = node_map[node];
 		}
-		timer.finalize(comm, num_local_vertices, distance_rulers);
+		timer.finalize(comm);
 
 	
 	/*

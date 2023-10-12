@@ -1,3 +1,5 @@
+#pragma once
+
 #include "../timer.cpp"
 
 class irregular_ruling_set2
@@ -340,7 +342,7 @@ class irregular_ruling_set2
 			del[i] = prefix_sum_num_vertices_per_PE[size] - 1 - (del[i] + recv_answers[packet_index]);
 		}
 		
-		timer.finalize(comm, num_local_vertices, dist_rulers);
+		//timer.finalize(comm, num_local_vertices, dist_rulers);
 
 
 	

@@ -142,7 +142,7 @@ class regular_pointer_doubling
 			}
 	
 		}
-		timer.finalize(comm, num_local_vertices, 0);
+		timer.finalize(comm);
 
 		/*
 		std::cout << rank << " mit rank array:\n";

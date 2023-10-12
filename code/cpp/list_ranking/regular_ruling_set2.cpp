@@ -1,6 +1,7 @@
 //this class is implemented like in the paper "ultimate parallel list ranking" to minimize number of communication steps in trade of local work
 
 #include "irregular_pointer_doubling.cpp"
+#include "irregular_ruling_set2.cpp"
 
 class regular_ruling_set2
 {
@@ -15,10 +16,11 @@ class regular_ruling_set2
 	
 	public:
 	
-	regular_ruling_set2(std::vector<std::uint64_t>& s, std::uint64_t dist_rulers)
+	regular_ruling_set2(std::vector<std::uint64_t>& s, std::uint64_t dist_rulers, std::uint32_t num_iterations)
 	{
 		this->s = s;
 		this->dist_rulers = dist_rulers;
+		this->num_iterations = num_iterations;
 	}
 	
 	
@@ -31,7 +33,10 @@ class regular_ruling_set2
 		
 		std::vector<std::string> categories = {"local_work", "communication"};
 		timer timer("ruler_pakete_senden", categories, "local_work");
-
+		
+		timer.add_info(comm, std::string("dist_rulers"), std::to_string(dist_rulers));
+		timer.add_info(comm, std::string("num_iterations"), std::to_string(num_iterations));
+		
 		
 		//man kann ja wieder die ersten n/dist vielen nodes als ruler setzten. den ruler index speichern. wenn eine packet iteration durch ist, werden erreichte ruler gezählt und genau so viele neue ruler gemacht, in dem rulerindex erhöhrt wird. Dadruch wird nur ein einziges mal extra iteriert
 		std::uint64_t out_buffer_size = num_local_vertices/dist_rulers;
@@ -264,8 +269,18 @@ class regular_ruling_set2
 		
 		timer.add_checkpoint("rekursion");
 
-		irregular_pointer_doubling algorithm(s_rec, r_rec, targetPEs_rec, prefix_sum_num_vertices_per_PE);
-		std::vector<std::int64_t> ranks = algorithm.start(comm);
+		std::vector<std::int64_t> ranks;
+		if (num_iterations == 2)
+		{
+			irregular_ruling_set2 algorithm(s_rec, r_rec, targetPEs_rec, dist_rulers,  prefix_sum_num_vertices_per_PE);
+			ranks = algorithm.start(comm);	
+		}
+		else
+		{
+			irregular_pointer_doubling algorithm(s_rec, r_rec, targetPEs_rec, prefix_sum_num_vertices_per_PE);
+			ranks = algorithm.start(comm);	
+		}
+		
 		timer.add_checkpoint("finalen_ranks_berechnen");
 
 		
@@ -307,7 +322,7 @@ class regular_ruling_set2
 			del[i] = size * num_local_vertices - 1 - (del[i] + recv_answers[packet_index]);
 		}
 		
-		timer.finalize(comm, num_local_vertices, dist_rulers);
+		timer.finalize(comm);
 
 	
 		return del;
@@ -399,6 +414,7 @@ class regular_ruling_set2
 	std::vector<std::uint64_t> s; //s einfach immer übergeben, sonst wird da viel zu viel rumkpiert
 	
 	std::uint64_t dist_rulers;
+	std::uint32_t num_iterations;
 };
 
 
