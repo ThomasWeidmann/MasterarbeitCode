@@ -135,12 +135,12 @@ int main(int argc, char* argv[]) {
 		{
 			std::uint64_t num_local_vertices = atoi(argv[2]);
 
-			std::vector<std::uint64_t> s = generator::generate_regular_wood_vector(num_local_vertices, comm);
+			std::vector<std::uint64_t> s = generator::generate_regular_successor_vector(num_local_vertices, comm);
 			regular_pointer_doubling algorithm(s, comm);
 			
 			std::vector<std::int64_t> d = algorithm.start(comm);
 			
-			//test::regular_test(comm, s, d);
+			test::regular_test(comm, s, d);
 		}
 		else if (sequential.compare(argv[1]) == 0 && mpi_size == 1)
 		{
@@ -153,19 +153,20 @@ int main(int argc, char* argv[]) {
 		else if (tree_rooting.compare(argv[1]) == 0)
 		{
 			std::int32_t num_local_vertices = atoi(argv[2]);
-			std::vector<std::uint64_t> tree_vector = generator::generate_regular_tree_vector(num_local_vertices, comm);
+			std::vector<std::uint64_t> tree_vector = generator::generate_regular_successor_vector(num_local_vertices, comm);
 			std::int32_t dist_rulers = atoi(argv[3]);
 			std::vector<std::int64_t> d = wood_regular_ruling_set2(tree_vector, dist_rulers, comm).result_dist;
 			
-			//test::regular_test(comm, tree_vector, d);
+			test::regular_test(comm, tree_vector, d);
 		}
 		else if (euler_tour.compare(argv[1]) == 0)
 		{
 			std::uint64_t num_local_vertices = atoi(argv[2]);
-			std::vector<std::uint64_t> tree_vector = generator::generate_regular_tree_vector(num_local_vertices, comm);
+			std::int32_t dist_rulers = atoi(argv[3]);
+			std::vector<std::uint64_t> tree_vector = generator::generate_regular_successor_vector(num_local_vertices, comm);
 
-			std::vector<std::int64_t> d = tree_euler_tour(comm, tree_vector).start(comm, tree_vector);
-			//test::regular_test(comm, tree_vector, d);
+			std::vector<std::int64_t> d = tree_euler_tour(comm, tree_vector, dist_rulers).start(comm, tree_vector);
+			test::regular_test(comm, tree_vector, d);
 		}
 		else if (init_mpi.compare(argv[1]) == 0)
 		{

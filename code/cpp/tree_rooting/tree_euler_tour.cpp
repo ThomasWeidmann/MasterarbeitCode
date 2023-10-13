@@ -9,20 +9,27 @@ class tree_euler_tour
 
 	public:
 	
-	tree_euler_tour(kamping::Communicator<>& comm, std::vector<std::uint64_t>& s)
+	tree_euler_tour(kamping::Communicator<>& comm, std::vector<std::uint64_t>& s, std::uint32_t dist_rulers)
 	{
 
 		num_local_vertices = s.size();
 		size = comm.size();
 		rank = comm.rank();
 		node_offset = rank * num_local_vertices;
-		
+		this->dist_rulers = dist_rulers;
 		
 
 	}
 	
 	std::vector<std::int64_t> start(kamping::Communicator<>& comm, std::vector<std::uint64_t>& s)
 	{
+		std::vector<std::string> categories = {"local_work", "communication"};
+		timer timer("graph umdrehen", categories, "local_work");
+		
+		timer.add_info(comm, std::string("dist_rulers"), std::to_string(dist_rulers));
+		timer.add_info(comm, std::string("num_local_vertices"), std::to_string(num_local_vertices));
+		
+		
 		std::int64_t local_root = -1;
 		
 		//first calculate adjacency array by also turning edges
@@ -36,7 +43,7 @@ class tree_euler_tour
 		{
 			if (i + node_offset == s[i])
 			{
-				local_root = i + node_offset;
+				local_root = i;
 				continue;
 			}
 			std::int32_t targetPE = s[i] / s.size();
@@ -60,7 +67,6 @@ class tree_euler_tour
 		auto recv = comm.alltoallv(kamping::send_buf(edges), kamping::send_counts(num_packets_per_PE)).extract_recv_buffer();
 	
 		all_edges = std::vector<std::uint64_t>(recv.size() + s.size());
-		all_edges_weights = std::vector<std::int64_t>(recv.size() + s.size());
 		std::vector<std::uint64_t> edges_per_node(s.size(),0);
 		
 		for (std::uint64_t i = 0; i < recv.size(); i++)
@@ -78,15 +84,19 @@ class tree_euler_tour
 		{
 			std::uint64_t packet_index = bounds[i] + edges_per_node[i]++;
 			all_edges[packet_index] = s[i];
-			all_edges_weights[packet_index] = 1;
+			
 		}
 		for (std::uint64_t i = 0; i < recv.size(); i++)
 		{
 			std::uint64_t target_node = recv[i].destination - node_offset;
 			std::uint64_t packet_index = bounds[target_node] + edges_per_node[target_node]++;
 			all_edges[packet_index] = recv[i].source;
-			all_edges_weights[packet_index] = -1;
 		}
+		
+		
+		timer.add_checkpoint("edge_weights");
+		all_edges_weights = std::vector<std::int64_t>(recv.size() + s.size(), -1);
+
 		
 		// graph sucessfully added all back edges to adjacency array
 		num_local_edges = all_edges.size();
@@ -104,8 +114,29 @@ class tree_euler_tour
 		for (std::uint64_t i = 0; i < num_local_vertices; i++)
 			std::sort(&all_edges[bounds[i]], &all_edges[bounds[i+1]]);
 		
+		for (std::uint64_t i = 0; i < s.size(); i++)
+		{
+			std::uint64_t dynamic_lower_bound = bounds[i];
+			std::uint64_t dynamic_upper_bound = bounds[i+1];
+			
+			
+			while (dynamic_upper_bound - dynamic_lower_bound > 1)
+			{
+				std::uint64_t middle = (dynamic_lower_bound + dynamic_upper_bound) / 2;
+				
+				if (all_edges[middle] > s[i])
+					dynamic_upper_bound = middle;
+				else
+					dynamic_lower_bound = middle;
+				
+			}
+			std::uint64_t result = dynamic_lower_bound;
+			
+			all_edges_weights[result] = 1;
+		}
 	
-		
+		timer.add_checkpoint("transform_into_successor_arr");
+
 		
 		std::fill(num_packets_per_PE.begin(), num_packets_per_PE.end(), 0);
 
@@ -185,7 +216,6 @@ class tree_euler_tour
 			
 		}
 		
-		
 		if (local_root != -1)
 		{
 			std::uint64_t dynamic_lower_bound = bounds[local_root];
@@ -196,7 +226,7 @@ class tree_euler_tour
 			{
 				std::uint64_t middle = (dynamic_lower_bound + dynamic_upper_bound) / 2;
 				
-				if (all_edges[middle] > local_root + prefix_sum_num_edges_per_PE[rank])
+				if (all_edges[middle] > local_root + node_offset)
 					dynamic_upper_bound = middle;
 				else
 					dynamic_lower_bound = middle;
@@ -204,7 +234,7 @@ class tree_euler_tour
 			}
 			std::uint64_t result = dynamic_lower_bound;
 			
-			s_edges[result] = local_root + prefix_sum_num_edges_per_PE[rank];
+			s_edges[result] = result + prefix_sum_num_edges_per_PE[rank];
 			all_edges_weights[result] = 0;
 		}
 		
@@ -236,9 +266,15 @@ class tree_euler_tour
 			targetPEs[j] = all_edges[j] / num_local_vertices; 
 		
 		
+		timer.add_checkpoint("ruling_set");
+
+		
 		//irregular_pointer_doubling algorithm(s_edges,all_edges_weights,targetPEs,prefix_sum_num_edges_per_PE);
-		irregular_ruling_set2 algorithm(s_edges, all_edges_weights, targetPEs, 1000, prefix_sum_num_edges_per_PE);
+		irregular_ruling_set2 algorithm(s_edges, all_edges_weights, targetPEs, dist_rulers, prefix_sum_num_edges_per_PE);
 		std::vector<std::int64_t> ranks = algorithm.start(comm);
+		
+		timer.add_checkpoint("final_ranks_berechnen");
+
 		
 		std::vector<std::int64_t> final_ranks(num_local_vertices);
 		for (std::uint64_t i = 0; i < num_local_vertices; i++)
@@ -249,6 +285,8 @@ class tree_euler_tour
 		for (int i = 0; i < final_ranks.size(); i++)
 			std::cout << final_ranks[i] << ",";
 		std::cout << std::endl;*/
+		
+		timer.finalize(comm);
 		
 		return final_ranks;
 		
@@ -274,6 +312,7 @@ class tree_euler_tour
 	std::uint64_t rank;
 	std::uint64_t num_local_vertices;
 	std::uint64_t node_offset;
+	std::uint32_t dist_rulers;
 	
 	std::uint64_t num_local_edges;
 	

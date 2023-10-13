@@ -35,8 +35,7 @@ class regular_ruling_set2
 		timer timer("ruler_pakete_senden", categories, "local_work");
 		
 		timer.add_info(comm, std::string("dist_rulers"), std::to_string(dist_rulers));
-		timer.add_info(comm, std::string("num_iterations"), std::to_string(num_iterations));
-		
+		timer.add_info(comm, std::string("num_local_vertices"), std::to_string(num_local_vertices));
 		
 		//man kann ja wieder die ersten n/dist vielen nodes als ruler setzten. den ruler index speichern. wenn eine packet iteration durch ist, werden erreichte ruler gezählt und genau so viele neue ruler gemacht, in dem rulerindex erhöhrt wird. Dadruch wird nur ein einziges mal extra iteriert
 		std::uint64_t out_buffer_size = num_local_vertices/dist_rulers;
