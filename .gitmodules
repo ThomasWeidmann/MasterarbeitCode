@@ -1,9 +1,0 @@
-[submodule "KaGen"]
-	path = KaGen
-	url = https://github.com/KarlsruheGraphGeneration/KaGen
-[submodule "kamping"]
-	path = kamping
-	url = git@github.com:kamping-site/kamping.git
-[submodule "message-queue"]
-	path = message-queue
-	url = https://github.com/niklas-uhl/message-queue.git
