@@ -24,10 +24,10 @@ class tree_euler_tour
 	std::vector<std::int64_t> start(kamping::Communicator<>& comm, std::vector<std::uint64_t>& s)
 	{
 		std::vector<std::string> categories = {"local_work", "communication"};
-		timer timer("graph umdrehen", categories, "local_work");
+		timer timer("graph umdrehen", categories, "local_work", "tree_euler_tour");
 		
-		timer.add_info(comm, std::string("dist_rulers"), std::to_string(dist_rulers));
-		timer.add_info(comm, std::string("num_local_vertices"), std::to_string(num_local_vertices));
+		timer.add_info(std::string("dist_rulers"), std::to_string(dist_rulers));
+		timer.add_info(std::string("num_local_vertices"), std::to_string(num_local_vertices));
 		
 		
 		std::int64_t local_root = -1;
@@ -63,8 +63,10 @@ class tree_euler_tour
 			edges[packet_index].source = i + node_offset;
 			edges[packet_index].destination = s[i];
 		}
+		timer.switch_category("communication");
 		
 		auto recv = comm.alltoallv(kamping::send_buf(edges), kamping::send_counts(num_packets_per_PE)).extract_recv_buffer();
+		timer.switch_category("local_work");
 	
 		all_edges = std::vector<std::uint64_t>(recv.size() + s.size());
 		std::vector<std::uint64_t> edges_per_node(s.size(),0);
@@ -102,7 +104,10 @@ class tree_euler_tour
 		num_local_edges = all_edges.size();
 		std::vector<std::uint64_t> send(1,num_local_edges);
 		std::vector<std::uint64_t> recv_sizes;
+		timer.switch_category("communication");
+
 		comm.allgather(kamping::send_buf(send), kamping::recv_buf<kamping::resize_to_fit>(recv_sizes));
+		timer.switch_category("local_work");
 		
 		std::vector<std::uint64_t> prefix_sum_num_edges_per_PE(size + 1,0);
 		for (std::uint64_t i = 1; i < size + 1; i++)
@@ -163,8 +168,10 @@ class tree_euler_tour
 		
 	
 		
+		timer.switch_category("communication");
 			
 		auto recv_request = comm.alltoallv(kamping::send_buf(request), kamping::send_counts(num_packets_per_PE));
+		timer.switch_category("local_work");
 		std::vector<edge> recv_buffer = recv_request.extract_recv_buffer();
 
 		std::vector<std::uint64_t> answers(recv_buffer.size());
@@ -199,8 +206,10 @@ class tree_euler_tour
 		}
 		
 		
+		timer.switch_category("communication");
 		
 		auto recv_answers = comm.alltoallv(kamping::send_buf(answers), kamping::send_counts(recv_request.extract_recv_counts())).extract_recv_buffer();
+		timer.switch_category("local_work");
 		std::vector<std::uint64_t> s_edges(num_local_edges);
 	
 		std::fill(num_packets_per_PE.begin(), num_packets_per_PE.end(), 0);

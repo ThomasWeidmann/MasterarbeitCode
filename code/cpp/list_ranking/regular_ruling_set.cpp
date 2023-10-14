@@ -44,9 +44,12 @@ class regular_ruling_set : public list_ranking
 		
 		
 		
-		std::vector<std::string> categories = {"local_work", "communication", "test"};
-		timer timer("ruler_pakete_senden", categories, "local_work");
+		std::vector<std::string> categories = {"local_work", "communication"};
+		timer timer("ruler_pakete_senden", categories, "local_work", "regular_ruling_set");
 		
+		timer.add_info("num_local_vertices", std::to_string(num_local_vertices));
+		timer.add_info("dist_rulers", std::to_string(distance_rulers));
+		timer.add_info("iterations", std::to_string(num_iterations));
 		
 		size = comm.size();
 		rank = comm.rank();

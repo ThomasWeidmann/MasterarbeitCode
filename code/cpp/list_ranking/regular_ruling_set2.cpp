@@ -32,10 +32,11 @@ class regular_ruling_set2
 		node_offset = rank * num_local_vertices;
 		
 		std::vector<std::string> categories = {"local_work", "communication"};
-		timer timer("ruler_pakete_senden", categories, "local_work");
+		timer timer("ruler_pakete_senden", categories, "local_work", "regular_ruling_set2");
 		
-		timer.add_info(comm, std::string("dist_rulers"), std::to_string(dist_rulers));
-		timer.add_info(comm, std::string("num_local_vertices"), std::to_string(num_local_vertices));
+		timer.add_info(std::string("dist_rulers"), std::to_string(dist_rulers));
+		timer.add_info(std::string("num_local_vertices"), std::to_string(num_local_vertices));
+		timer.add_info(std::string("iterations"), std::to_string(num_iterations));
 		
 		//man kann ja wieder die ersten n/dist vielen nodes als ruler setzten. den ruler index speichern. wenn eine packet iteration durch ist, werden erreichte ruler gezählt und genau so viele neue ruler gemacht, in dem rulerindex erhöhrt wird. Dadruch wird nur ein einziges mal extra iteriert
 		std::uint64_t out_buffer_size = num_local_vertices/dist_rulers;
@@ -177,7 +178,7 @@ class regular_ruling_set2
 				}	
 
 			}
-			timer.switch_category("local_work");
+		
 
 			
 			for (std::uint64_t i = 0; i < rulers_to_send_packages.size(); i++)

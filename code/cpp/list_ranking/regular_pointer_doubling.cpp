@@ -55,7 +55,10 @@ class regular_pointer_doubling
 	std::vector<std::int64_t> start(kamping::Communicator<>& comm)
 	{
 		std::vector<std::string> categories = {"local_work", "communication"};
-		timer timer("ruler_pakete_senden", categories, "local_work");
+		timer timer("start", categories, "local_work", "regular_pointer_doubling");
+		
+		timer.add_info(std::string("num_local_vertices"), std::to_string(num_local_vertices));
+
 		
 		size = comm.size();
 		rank = comm.rank();
@@ -105,7 +108,11 @@ class regular_pointer_doubling
 				}
 				
 			}
+			timer.switch_category("communication");
+		
 			std::vector<node_request> recv_requests = comm.alltoallv(kamping::send_buf(requests), kamping::send_counts(num_packets_per_PE)).extract_recv_buffer();
+			timer.switch_category("local_work");
+
 			//dann answers gezählt
 			
 			answers.resize(recv_requests.size());
@@ -128,9 +135,11 @@ class regular_pointer_doubling
 				answers[packet_index].mst_of_mst = q[local_index];
 				answers[packet_index].passive_of_mst = passive[local_index];
 			}
-		
+			timer.switch_category("communication");
+	
 			std::vector<answer> recv_answers = comm.alltoallv(kamping::send_buf(answers), kamping::send_counts(num_packets_per_PE)).extract_recv_buffer();
-			//dann answers eingetragen
+			timer.switch_category("local_work");
+				//dann answers eingetragen
 			
 			for (std::int32_t i = 0; i < recv_answers.size(); i++)
 			{
@@ -142,7 +151,7 @@ class regular_pointer_doubling
 			}
 	
 		}
-		//timer.finalize(comm);
+		timer.finalize(comm);
 
 		/*
 		std::cout << rank << " mit rank array:\n";

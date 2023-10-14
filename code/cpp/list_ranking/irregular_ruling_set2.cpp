@@ -27,8 +27,7 @@ class irregular_ruling_set2
 	
 	std::vector<std::int64_t> start(kamping::Communicator<>& comm)
 	{
-		std::vector<std::string> categories = {"local_work", "communication"};
-		timer timer("ruler_pakete_senden", categories, "local_work");
+		
 		
 		rank = comm.rank();
 		size = comm.size();
@@ -38,7 +37,11 @@ class irregular_ruling_set2
 		std::uint64_t out_buffer_size = num_local_vertices/dist_rulers;
 		std::vector<packet> out_buffer(out_buffer_size);
 		
+		std::vector<std::string> categories = {"local_work", "communication"};
+		timer timer("ruler_pakete_senden", categories, "local_work", "irregular_ruling_set2");
 		
+		timer.add_info(std::string("dist_rulers"), std::to_string(dist_rulers));
+		timer.add_info(std::string("num_local_vertices"), std::to_string(num_local_vertices), true);
 		
 
 		std::vector<std::int32_t> num_packets_per_PE(size,0);
@@ -171,7 +174,7 @@ class irregular_ruling_set2
 				}	
 
 			}
-			timer.switch_category("local_work");
+		
 
 			
 			for (std::uint64_t i = 0; i < rulers_to_send_packages.size(); i++)
@@ -342,7 +345,7 @@ class irregular_ruling_set2
 			del[i] = prefix_sum_num_vertices_per_PE[size] - 1 - (del[i] + recv_answers[packet_index]);
 		}
 		
-		//timer.finalize(comm, num_local_vertices, dist_rulers);
+		timer.finalize(comm);
 
 
 	

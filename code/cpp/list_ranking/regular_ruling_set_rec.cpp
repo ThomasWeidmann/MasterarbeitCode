@@ -45,7 +45,11 @@ class regular_ruling_set_rec
 	std::vector<std::int64_t> start(kamping::Communicator<>& comm)
 	{
 		
+		std::vector<std::string> categories = {"local_work", "communication"};
+		timer timer("ruler_pakete_senden", categories, "local_work", "regular_ruling_set_rec");
 		
+		timer.add_info("num_local_vertices", std::to_string(num_local_vertices));
+		timer.add_info("dist_rulers", std::to_string(distance_rulers));
 		
 		
 		
@@ -91,7 +95,12 @@ class regular_ruling_set_rec
 			}
 		}
 		
+		timer.switch_category("communication");
+
 		auto recv = comm.alltoallv(kamping::send_buf(out_buffer), kamping::send_counts(num_packets_per_PE));
+	
+		timer.switch_category("local_work");
+
 	
 		std::vector<packet_rec> recv_buffer = recv.extract_recv_buffer();
 
@@ -100,7 +109,8 @@ class regular_ruling_set_rec
 		
 		std::int32_t num_reached_nodes = 0;
 		bool more_nodes_reached = false;
-		
+		timer.add_checkpoint("pakete_verfolgen");
+
 	
 		std::int32_t max_iteration = distance_rulers * std::log(num_global_vertices);
 		std::int32_t iteration=0;
@@ -152,12 +162,18 @@ class regular_ruling_set_rec
 					out_buffer[packet_index].ruler_distance = packet.ruler_distance + r[local_index];
 				}
 			}
+			timer.switch_category("communication");
 
 			auto recv = comm.alltoallv(kamping::send_buf(out_buffer), kamping::send_counts(num_packets_per_PE));
 
 			recv_buffer = recv.extract_recv_buffer(); //wird der alte recv_buffer eigentlich gefreed?
-			
+			timer.switch_category("local_work");
+
 		}
+		
+		
+		timer.add_checkpoint("rekursion_vorbereiten");
+
 		
 		//wir müssen noch die insgesamte distanz der anfangsknoten vor dem unreached ruler zählen und dann die gesamtzahl als rank setzten
 		/*	std::cout << rank << ":";
@@ -179,14 +195,24 @@ class regular_ruling_set_rec
 		
 		std::vector<std::int32_t> send_partial_distance(1, local_partial_distance);
 		std::vector<std::int32_t> recv_partial_distance;
+		
+		timer.switch_category("communication");
+
 		comm.allgather(kamping::send_buf(send_partial_distance), kamping::recv_buf<kamping::resize_to_fit>(recv_partial_distance));
+		timer.switch_category("local_work");
+		
+		
 		std::int32_t sum = 0; 
 		for (std::int32_t i = 0; i < size; i++)
 			sum+= recv_partial_distance[i];
 	
 		std::vector<std::int32_t> send_partial_sum_r(1, sum_r);
 		std::vector<std::int32_t> recv_partial_sum_r;
+		timer.switch_category("communication");
+
 		comm.allgather(kamping::send_buf(send_partial_sum_r), kamping::recv_buf<kamping::resize_to_fit>(recv_partial_sum_r));
+		timer.switch_category("local_work");
+
 		sum_r = 0; 
 		for (std::int32_t i = 0; i < size; i++)
 			sum_r+= recv_partial_sum_r[i];
@@ -221,9 +247,12 @@ class regular_ruling_set_rec
 		*/
 		
 	
-		
+		timer.add_checkpoint("rekursion");
+
 		regular_pointer_doubling algorithm(s_rec, r_rec, local_index_final_node_rec);
 		std::vector<std::int64_t> result = algorithm.start(comm);
+		timer.add_checkpoint("finalen_ranks_berechnen");
+
 		for (std::int32_t local_index = 0; local_index < num_local_rulers; local_index++)
 		{
 			result[local_index] = sum_r  - result[local_index];
@@ -231,8 +260,12 @@ class regular_ruling_set_rec
 	
 	
 		std::vector<std::int64_t> all_results;
-		
+		timer.switch_category("communication");
+
 		comm.allgather(kamping::send_buf(result), kamping::recv_buf<kamping::resize_to_fit>(all_results));
+		timer.switch_category("local_work");
+
+
 		//jetzt müssen werte wiederhergestellt werden
 		//dafür müssen alle ruler auf alle PE verteilt werden
 		
@@ -262,8 +295,10 @@ class regular_ruling_set_rec
 		
 		local_unreached_nodes.resize(local_unreached_nodes_index);
 		std::vector<node_packet_rec> global_unreached_nodes; //das hier sind jetzt genau die nodes, die vor dem ersten ruler sind
+		timer.switch_category("communication");
 		
 		comm.allgatherv(kamping::send_buf(local_unreached_nodes), kamping::recv_buf<kamping::resize_to_fit>(global_unreached_nodes));
+		timer.switch_category("local_work");
 		
 		std::unordered_map<std::int32_t, std::int32_t> node_map; //node_map[source] = destination, für jeden unreached node (source,destination)
 		std::unordered_map<std::int32_t, std::int32_t> has_pred_map; //has_pred_map[source] = true, if any node source has any pred
@@ -295,6 +330,9 @@ class regular_ruling_set_rec
 			node_rank-= r_map[node];
 			node = node_map[node];
 		}
+		
+		timer.finalize(comm);
+		
 		return result;
 	}
 	

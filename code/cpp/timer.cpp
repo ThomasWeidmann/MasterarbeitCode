@@ -24,7 +24,7 @@ class timer
 {
 	public:
 	
-	timer(std::string first_checkpoint, std::vector<std::string> categories, std::string start_category)
+	timer(std::string first_checkpoint, std::vector<std::string> categories, std::string start_category, std::string algorithm)
 	{
 
 		times = std::vector<uint64_t>(1);
@@ -43,6 +43,7 @@ class timer
 		for (int i = 0; i < categories.size(); i++)
 			map[categories[i]] = 0;
 		
+		add_info("algorithm", algorithm);
 	}
 	
 	void switch_category(std::string category)
@@ -54,13 +55,16 @@ class timer
 		
 	}
 	
-	void add_info(kamping::Communicator<>& comm, std::string name, std::string value)
+	void add_info(std::string name, std::string value)
+	{
+		add_info(name, value, false);
+	}
+	
+	void add_info(std::string name, std::string value, bool output_for_every_PE)
 	{
 		info_values.push_back(value);
 		info_names.push_back(name);
-		//std::vector<char> data(name.begin(), name.end());
-		//comm.gather(kamping::send_buf(data), kamping::recv_buf(recv), kamping::root(0));
-		
+		info_bool.push_back(output_for_every_PE);
 	}
 	
 	void add_checkpoint(std::string checkpoint)
@@ -88,7 +92,7 @@ class timer
 	{	
 		//measure finish time instantly
 		times.push_back(get_time());
-		add_info(comm, "p", std::to_string(comm.size()));
+		add_info("p", std::to_string(comm.size()));
 		
 		std::string output = "{\n";
 		//first print total time
@@ -123,11 +127,20 @@ class timer
 			
 			for (std::uint32_t i = 0; i < info_names.size(); i++)
 			{
-				output += quote(info_names[i]) + ":[";
-				for (std::uint32_t j = 0; j < comm.size(); j++)
-					output += all_info_values[i + j*info_names.size()] + ",";
-				output.pop_back();
-				output += "],\n";
+				if (info_bool[i])
+				{
+					output += quote(info_names[i]) + ":[";
+					for (std::uint32_t j = 0; j < comm.size(); j++)
+						output += all_info_values[i + j*info_names.size()] + ",";
+					output.pop_back();
+					output += "],\n";
+				} 
+				else
+				{
+					output += quote(info_names[i]) + ":" + info_values[i] + ",\n";
+				}
+				
+				
 			}
 		}
 		
@@ -169,29 +182,34 @@ class timer
 		//third print categories
 		std::vector<uint64_t> all_categorial_times;
 		std::vector<uint64_t> local_categorial_times(0);
+		std::vector<std::string> categorial_names(0);
 		
 		for (const auto& [key, value] : map)
+		{
 			local_categorial_times.push_back(value);
+			categorial_names.push_back(key);
+		}
 		comm.gather(kamping::send_buf(local_categorial_times), kamping::recv_buf<kamping::resize_to_fit>(all_categorial_times), kamping::root(0));
 		if (comm.rank() == 0)
 		{
-			/*
-			std::string all_categories = "[";
-			for (const auto& [key, value] : map)
-			{
-				all_categories += quote(key);
-			}
-			all_categories.pop_back();
-			all_categories += "]";
+			output += quote("all_categories") + ":[";
 			
-			output += quote("categories") + ":" + all_categories + ",\n";
+			for (std::uint32_t i = 0; i < categorial_names.size(); i++)
+			{
+				output += quote(categorial_names[i]) + ",";
+			}
+			output.pop_back();
+			output += "],\n";
+			
+			
 			for (int i = 0; i < local_categorial_times.size(); i++)
 			{
-				
+				output += quote(categorial_names[i]) + ":[";
 				for (int j = 0; j < comm.size(); j++)
-					outpu
-				all_final_times_from_one_checkpoint[j] = all_final_times[i + j*names.size()];
-			}*/
+					output += std::to_string(all_categorial_times[i + j*local_categorial_times.size()]) + ",";
+				output.pop_back();
+				output += "],\n";
+			}
 			
 			output.pop_back();
 			output.pop_back();
@@ -220,6 +238,7 @@ class timer
 	
 	std::vector<std::string> info_names;
 	std::vector<std::string> info_values;
+	std::vector<bool> info_bool;
 	
 	std::vector<uint64_t> times;
 	std::vector<std::string> names;
