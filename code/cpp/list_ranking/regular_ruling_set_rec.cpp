@@ -179,14 +179,14 @@ class regular_ruling_set_rec
 		
 		std::vector<std::int32_t> send_partial_distance(1, local_partial_distance);
 		std::vector<std::int32_t> recv_partial_distance;
-		comm.allgather(kamping::send_buf(send_partial_distance), kamping::recv_buf(recv_partial_distance));
+		comm.allgather(kamping::send_buf(send_partial_distance), kamping::recv_buf<kamping::resize_to_fit>(recv_partial_distance));
 		std::int32_t sum = 0; 
 		for (std::int32_t i = 0; i < size; i++)
 			sum+= recv_partial_distance[i];
 	
 		std::vector<std::int32_t> send_partial_sum_r(1, sum_r);
 		std::vector<std::int32_t> recv_partial_sum_r;
-		comm.allgather(kamping::send_buf(send_partial_sum_r), kamping::recv_buf(recv_partial_sum_r));
+		comm.allgather(kamping::send_buf(send_partial_sum_r), kamping::recv_buf<kamping::resize_to_fit>(recv_partial_sum_r));
 		sum_r = 0; 
 		for (std::int32_t i = 0; i < size; i++)
 			sum_r+= recv_partial_sum_r[i];
@@ -232,7 +232,7 @@ class regular_ruling_set_rec
 	
 		std::vector<std::int64_t> all_results;
 		
-		comm.allgather(kamping::send_buf(result), kamping::recv_buf(all_results));
+		comm.allgather(kamping::send_buf(result), kamping::recv_buf<kamping::resize_to_fit>(all_results));
 		//jetzt müssen werte wiederhergestellt werden
 		//dafür müssen alle ruler auf alle PE verteilt werden
 		
@@ -263,7 +263,7 @@ class regular_ruling_set_rec
 		local_unreached_nodes.resize(local_unreached_nodes_index);
 		std::vector<node_packet_rec> global_unreached_nodes; //das hier sind jetzt genau die nodes, die vor dem ersten ruler sind
 		
-		comm.allgatherv(kamping::send_buf(local_unreached_nodes), kamping::recv_buf(global_unreached_nodes));
+		comm.allgatherv(kamping::send_buf(local_unreached_nodes), kamping::recv_buf<kamping::resize_to_fit>(global_unreached_nodes));
 		
 		std::unordered_map<std::int32_t, std::int32_t> node_map; //node_map[source] = destination, für jeden unreached node (source,destination)
 		std::unordered_map<std::int32_t, std::int32_t> has_pred_map; //has_pred_map[source] = true, if any node source has any pred
@@ -309,7 +309,7 @@ class regular_ruling_set_rec
 		std::int32_t work = this_PE_has_work;
 		std::vector<std::int32_t> send(1,work);
 		std::vector<std::int32_t> recv;
-		comm.allgather(kamping::send_buf(send), kamping::recv_buf(recv));
+		comm.allgather(kamping::send_buf(send), kamping::recv_buf<kamping::resize_to_fit>(recv));
 		
 		for (std::int32_t i = 0; i < size; i++)
 			work += recv[i];

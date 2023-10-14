@@ -102,7 +102,7 @@ class tree_euler_tour
 		num_local_edges = all_edges.size();
 		std::vector<std::uint64_t> send(1,num_local_edges);
 		std::vector<std::uint64_t> recv_sizes;
-		comm.allgather(kamping::send_buf(send), kamping::recv_buf(recv_sizes));
+		comm.allgather(kamping::send_buf(send), kamping::recv_buf<kamping::resize_to_fit>(recv_sizes));
 		
 		std::vector<std::uint64_t> prefix_sum_num_edges_per_PE(size + 1,0);
 		for (std::uint64_t i = 1; i < size + 1; i++)

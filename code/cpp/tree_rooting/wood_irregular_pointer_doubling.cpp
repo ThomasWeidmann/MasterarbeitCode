@@ -225,7 +225,7 @@ class wood_irregular_pointer_doubling
 		std::int32_t work = this_PE_has_work;
 		std::vector<std::int32_t> send(1,work);
 		std::vector<std::int32_t> recv;
-		comm.allgather(kamping::send_buf(send), kamping::recv_buf(recv));
+		comm.allgather(kamping::send_buf(send), kamping::recv_buf<kamping::resize_to_fit>(recv));
 		
 		for (std::int32_t i = 0; i < size; i++)
 			work += recv[i];

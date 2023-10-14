@@ -210,7 +210,7 @@ class regular_ruling_set2
 		//now just the global starting node is unreached, this node is also always a ruler
 		std::vector<std::uint64_t> num_local_vertices_per_PE;
 		timer.switch_category("communication");
-		comm.allgather(kamping::send_buf(local_rulers.size()), kamping::recv_buf(num_local_vertices_per_PE));
+		comm.allgather(kamping::send_buf(local_rulers.size()), kamping::recv_buf<kamping::resize_to_fit>(num_local_vertices_per_PE));
 		timer.switch_category("local_work");
 		std::vector<std::uint64_t> prefix_sum_num_vertices_per_PE(size + 1,0);
 		for (std::uint32_t i = 1; i < size + 1; i++)

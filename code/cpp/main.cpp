@@ -19,6 +19,8 @@
 #include "kamping/environment.hpp"
 #include "kamping/collectives/allgather.hpp"
 #include "kamping/collectives/bcast.hpp"
+#include "kamping/data_buffer.hpp"
+#include "kamping/named_parameters.hpp"
 
 #include "timer.cpp"
 #include "generator.cpp"
@@ -88,11 +90,8 @@ int main(int argc, char* argv[]) {
 
 			std::int64_t dist_rulers = atoi(argv[3]);
 			std::vector<std::uint64_t> s = generator::generate_regular_successor_vector(num_local_vertices, comm);
-
 			regular_ruling_set algorithm = regular_ruling_set(s, dist_rulers, 1);
-			
 			std::vector<std::int64_t> d = algorithm.start(comm, s);
-			
 			test::regular_test(comm, s, d);
 		}
 		else if (ruling_set_rec.compare(argv[1]) == 0)

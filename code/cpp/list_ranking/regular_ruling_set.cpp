@@ -88,7 +88,11 @@ class regular_ruling_set : public list_ranking
 			}
 		}
 		timer.switch_category("communication");
+		
+		
+
 		auto recv = comm.alltoallv(kamping::send_buf(out_buffer), kamping::send_counts(num_packets_per_PE));
+		
 		std::vector<packet> recv_buffer = recv.extract_recv_buffer();
 		timer.switch_category("local_work");
 
@@ -102,7 +106,9 @@ class regular_ruling_set : public list_ranking
 
 		std::int64_t max_iteration = distance_rulers * std::log(num_global_vertices);
 		std::int64_t iteration=0;
-		while (iteration++ < max_iteration || any_PE_has_work(comm, more_nodes_reached))
+		
+
+		while (iteration++ < max_iteration  || any_PE_has_work(comm, more_nodes_reached))
 		{
 			//if (rank ==  0) std::cout << "iteration " << iteration << " mit " << num_local_vertices - num_reached_nodes << std::endl;
 			
@@ -113,7 +119,7 @@ class regular_ruling_set : public list_ranking
 			
 			for (packet& packet: recv_buffer)
 			{
-				
+				//std::cout << "iteration " << iteration << ", PE " << rank << " recv packet (src,dst): (" << packet.ruler_source << "," << packet.destination << ")" << std::endl; 
 				
 				
 				if (packet_will_be_forwarded(packet))
@@ -154,7 +160,9 @@ class regular_ruling_set : public list_ranking
 			auto recv = comm.alltoallv(kamping::send_buf(out_buffer), kamping::send_counts(num_packets_per_PE));
 			recv_buffer = recv.extract_recv_buffer(); //wird der alte recv_buffer eigentlich gefreed?
 			timer.switch_category("local_work");
-		
+			
+			
+
 		}
 		timer.add_checkpoint("rekursion_vorbereiten");
 
@@ -165,7 +173,7 @@ class regular_ruling_set : public list_ranking
 		std::vector<std::int64_t> recv_num_not_reached_nodes;
 		timer.switch_category("communication");
 		
-		comm.allgather(kamping::send_buf(send_num_not_reached_nodes), kamping::recv_buf(recv_num_not_reached_nodes));
+		comm.allgather(kamping::send_buf(send_num_not_reached_nodes), kamping::recv_buf<kamping::resize_to_fit>(recv_num_not_reached_nodes));
 		timer.switch_category("local_work");
 
 		std::int64_t sum = -1; //weil der erste ruler auch not reached ist, aber nicht mitgezählt werden soll. sonst nur nicht ruler unreached
@@ -221,7 +229,7 @@ class regular_ruling_set : public list_ranking
 		//falls dist_rulers << p, dann sollten results die benötigt werden requested werden und dann in eine lokale hasmap für effizienten zugriff geschrieben werden
 		timer.switch_category("communication");
 		
-		comm.allgather(kamping::send_buf(result), kamping::recv_buf(all_results));
+		comm.allgather(kamping::send_buf(result), kamping::recv_buf<kamping::resize_to_fit>(all_results));
 		timer.switch_category("local_work");
 
 		//jetzt müssen werte wiederhergestellt werden
@@ -254,7 +262,7 @@ class regular_ruling_set : public list_ranking
 		std::vector<node_packet> global_unreached_nodes; //das hier sind jetzt genau die nodes, die vor dem ersten ruler sind
 		timer.switch_category("communication");
 
-		comm.allgatherv(kamping::send_buf(local_unreached_nodes), kamping::recv_buf(global_unreached_nodes));
+		comm.allgatherv(kamping::send_buf(local_unreached_nodes), kamping::recv_buf<kamping::resize_to_fit>(global_unreached_nodes));
 		timer.switch_category("local_work");
 
 		std::unordered_map<std::int64_t, std::int64_t> node_map; //node_map[source] = destination, für jeden unreached node (source,destination)
@@ -304,17 +312,19 @@ class regular_ruling_set : public list_ranking
 		return is_ruler(global_index - targetPE * num_local_vertices);
 	}
 	
+	//ich habe die vermutung dass allgather kaputt ist...
 	bool any_PE_has_work(kamping::Communicator<>& comm, bool this_PE_has_work)
 	{
 		std::int32_t work = this_PE_has_work;
 		std::vector<std::int32_t> send(1,work);
 		std::vector<std::int32_t> recv;
-		comm.allgather(kamping::send_buf(send), kamping::recv_buf(recv));
+		comm.allgather(kamping::send_buf(send), kamping::recv_buf<kamping::resize_to_fit>(recv));
 		
 		for (std::int32_t i = 0; i < size; i++)
 			work += recv[i];
 		return work > 0;
 	}
+
 	
 	bool is_final(std::int64_t local_index)
 	{

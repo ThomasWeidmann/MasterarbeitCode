@@ -94,7 +94,7 @@ class timer
 		//first print total time
 		std::uint64_t total_time = times[times.size()-1] - times[0];
 		std::vector<std::uint64_t> total_times;
-		comm.gather(kamping::send_buf(total_time), kamping::recv_buf(total_times), kamping::root(0));
+		comm.gather(kamping::send_buf(total_time), kamping::recv_buf<kamping::resize_to_fit>(total_times), kamping::root(0));
 		if (comm.rank() == 0)
 		{
 			output += quote("total_time") + ":[" + std::to_string(total_times[0]);
@@ -110,7 +110,7 @@ class timer
 			info_string += info_values[i] + ",";
 		std::vector<char> data(info_string.begin(), info_string.end());
 		std::vector<char> recv_data;
-		comm.gather(kamping::send_buf(data), kamping::recv_buf(recv_data), kamping::root(0));
+		comm.gather(kamping::send_buf(data), kamping::recv_buf<kamping::resize_to_fit>(recv_data), kamping::root(0));
 	
 		if (comm.rank() == 0)
 		{
@@ -140,7 +140,7 @@ class timer
 		
 		
 		std::vector<uint64_t> all_final_times;
-		comm.gather(kamping::send_buf(final_times), kamping::recv_buf(all_final_times), kamping::root(0));
+		comm.gather(kamping::send_buf(final_times), kamping::recv_buf<kamping::resize_to_fit>(all_final_times), kamping::root(0));
 
 		if (comm.rank() == 0)
 		{
@@ -172,7 +172,7 @@ class timer
 		
 		for (const auto& [key, value] : map)
 			local_categorial_times.push_back(value);
-		comm.gather(kamping::send_buf(local_categorial_times), kamping::recv_buf(all_categorial_times), kamping::root(0));
+		comm.gather(kamping::send_buf(local_categorial_times), kamping::recv_buf<kamping::resize_to_fit>(all_categorial_times), kamping::root(0));
 		if (comm.rank() == 0)
 		{
 			/*

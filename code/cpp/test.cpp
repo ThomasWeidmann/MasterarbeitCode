@@ -32,7 +32,7 @@ class test
 		//first test if input and output dimensions are the same
 		std::vector<std::uint64_t> send_num(1,s.size() != d.size());
 		std::vector<std::uint64_t> recv_num;
-		comm.allgather(kamping::send_buf(send_num), kamping::recv_buf(recv_num));
+		comm.allgather(kamping::send_buf(send_num), kamping::recv_buf<kamping::resize_to_fit>(recv_num));
 		std::uint64_t sum = 0;
 		for (std::uint64_t i = 0; i < size; i++)
 			sum += recv_num[i];
@@ -88,7 +88,7 @@ class test
 		}
 		
 		send_num[0] = !correct;
-		comm.allgather(kamping::send_buf(send_num), kamping::recv_buf(recv_num));
+		comm.allgather(kamping::send_buf(send_num), kamping::recv_buf<kamping::resize_to_fit>(recv_num));
 		sum = 0;
 		for (std::uint64_t i = 0; i < size; i++)
 			sum += recv_num[i];

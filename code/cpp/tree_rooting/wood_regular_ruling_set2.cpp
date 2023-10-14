@@ -301,7 +301,7 @@ class wood_regular_ruling_set2 //this is for trees
 			std::cout << "final: mst[" << i + node_offset << "]=" << mst[i] << ", del[" << i+node_offset << "]=" << del[i] << (is_ruler(i)?" is_ruler\n":"\n");
 		*/
 		std::vector<std::uint64_t> num_local_vertices_per_PE;
-		comm.allgather(kamping::send_buf(local_rulers.size()), kamping::recv_buf(num_local_vertices_per_PE));
+		comm.allgather(kamping::send_buf(local_rulers.size()), kamping::recv_buf<kamping::resize_to_fit>(num_local_vertices_per_PE));
 		std::vector<std::uint64_t> prefix_sum_num_vertices_per_PE(size + 1,0);
 		for (std::uint32_t i = 1; i < size + 1; i++)
 		{
@@ -434,7 +434,7 @@ class wood_regular_ruling_set2 //this is for trees
 		std::int32_t work = this_PE_has_work;
 		std::vector<std::int32_t> send(1,work);
 		std::vector<std::int32_t> recv;
-		comm.allgather(kamping::send_buf(send), kamping::recv_buf(recv));
+		comm.allgather(kamping::send_buf(send), kamping::recv_buf<kamping::resize_to_fit>(recv));
 		
 		for (std::int32_t i = 0; i < size; i++)
 			work += recv[i];
