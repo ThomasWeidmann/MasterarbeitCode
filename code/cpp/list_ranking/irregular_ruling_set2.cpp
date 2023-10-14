@@ -345,7 +345,7 @@ class irregular_ruling_set2
 			del[i] = prefix_sum_num_vertices_per_PE[size] - 1 - (del[i] + recv_answers[packet_index]);
 		}
 		
-		timer.finalize(comm);
+		//timer.finalize(comm);
 
 
 	

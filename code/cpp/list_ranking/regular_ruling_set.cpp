@@ -296,7 +296,12 @@ class regular_ruling_set : public list_ranking
 			node_rank--;
 			node = node_map[node];
 		}
-		timer.finalize(comm);
+		
+		
+		std::string save_dir = "regular_ruling_set";
+		if (num_iterations == 2)
+			save_dir = "regular_ruling_set_rec";
+		timer.finalize(comm, save_dir);
 
 	
 	/*

@@ -322,7 +322,10 @@ class regular_ruling_set2
 			del[i] = size * num_local_vertices - 1 - (del[i] + recv_answers[packet_index]);
 		}
 		
-		timer.finalize(comm);
+		std::string save_dir = "regular_ruling_set2";
+		if (num_iterations == 2)
+			save_dir = "regular_ruling_set2_rec";
+		timer.finalize(comm, save_dir);
 
 	
 		return del;

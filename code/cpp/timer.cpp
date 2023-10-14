@@ -43,7 +43,7 @@ class timer
 		for (int i = 0; i < categories.size(); i++)
 			map[categories[i]] = 0;
 		
-		add_info("algorithm", algorithm);
+		add_info("algorithm", quote(algorithm));
 	}
 	
 	void switch_category(std::string category)
@@ -88,7 +88,7 @@ class timer
 		return "\"" + input + "\"";
 	}
 	
-	void finalize(kamping::Communicator<>& comm)
+	void finalize(kamping::Communicator<>& comm, std::string file_name)
 	{	
 		//measure finish time instantly
 		times.push_back(get_time());
@@ -120,7 +120,7 @@ class timer
 		{
 			std::vector<std::string> all_info_values = split(std::string(recv_data.begin(), recv_data.end()), ',');
 			
-			output += "info_names:[" + quote(info_names[0]);
+			output += "\"info_names\":[" + quote(info_names[0]);
 			for (std::uint32_t i = 1; i < info_names.size(); i++)
 				output += "," + quote(info_names[i]);
 			output += "],\n";
@@ -157,7 +157,7 @@ class timer
 
 		if (comm.rank() == 0)
 		{
-			output += "time_step_names:[" + quote(names[0]);
+			output += "\"time_step_names\":[" + quote(names[0]);
 			for (std::uint32_t i = 1; i < names.size(); i++) //-1, damit total time nicht als time step gewählt wird
 				output += "," + quote(names[i]);
 			output += "],\n";
@@ -216,7 +216,7 @@ class timer
 			output += "\n}\n,\n";
 			std::cout << output;
 			std::ofstream myfile;
-			myfile.open ("results.txt",  std::ios::app);
+			myfile.open (file_name + ".txt",  std::ios::app);
 			myfile << output;
 			myfile.close();
 		}	

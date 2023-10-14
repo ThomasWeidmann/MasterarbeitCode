@@ -295,7 +295,7 @@ class tree_euler_tour
 			std::cout << final_ranks[i] << ",";
 		std::cout << std::endl;*/
 		
-		timer.finalize(comm);
+		timer.finalize(comm, "euler_tour");
 		
 		return final_ranks;
 		

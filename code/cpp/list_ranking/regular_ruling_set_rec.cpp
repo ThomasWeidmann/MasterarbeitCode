@@ -331,7 +331,7 @@ class regular_ruling_set_rec
 			node = node_map[node];
 		}
 		
-		timer.finalize(comm);
+		//timer.finalize(comm);
 		
 		return result;
 	}

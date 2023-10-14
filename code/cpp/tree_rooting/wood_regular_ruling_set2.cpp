@@ -428,7 +428,7 @@ class wood_regular_ruling_set2 //this is for trees
 			
 		}
 		
-		timer.finalize(comm);
+		timer.finalize(comm, "wood_regular_ruling_set2");
 
 		
 	}
