@@ -7,18 +7,26 @@ import numpy as np
 import matplotlib.pyplot as plt
  
 
-path1 = '../../other/supermuc_auswertung/results_pointer_doubling.txt'
-path2 = '../../other/supermuc_auswertung/results_regular_ruling_set2.txt'
-f = open(path2)
 
+path1 = '../../other/supermuc_auswertung/results_regular_ruling_set.txt'
+path2 = '../../other/supermuc_auswertung/results_regular_ruling_set_rec.txt'
+path3 = '../../other/supermuc_auswertung/results_regular_ruling_set2.txt'
+path4 = '../../other/supermuc_auswertung/results_regular_ruling_set2_rec.txt'
+path5 = '../../other/supermuc_auswertung/results_euler_tour.txt'
+path6 = '../../other/supermuc_auswertung/results_wood_regular_ruling_set.txt'
+
+paths = [path1, path2, path3, path4, path5, path6]
+names = ["regular_ruling_set", "regular_ruling_set_rec", "regular_ruling_set2", "regular_ruling_set2_rec", "euler_tour", "wood_regular_ruling_set"]
 
  
 
  
-save_dir = "" 
- 
 
- 
+def to_json(path):
+    with open(path, 'r+') as file: 
+        file_data = file.read() 
+        file.seek(0, 0) 
+        file.write("{\n\"data\":[\n" + file_data[:-2] + "\n}]}") 
 
 
 #this function groups the json elements in path by the value "p" and returns the mean total_time
@@ -39,7 +47,7 @@ def get_PE_total_time_tuple(path):
     return processors, times
 
 
-def generate_time_step_graph(path):
+def generate_time_step_graph(path, algorithm_name):
     f = open(path)
     data = json.load(f)
    
@@ -65,26 +73,50 @@ def generate_time_step_graph(path):
     times = [0 for i in range(len(processors))]
     prefix_sum_times = [times];
     for i in range(len(steps)):
-        plt.bar(processors, time_matrix[i], bottom=times, label=steps[i])
+        plt.bar(processors, time_matrix[i], bottom=times, label=steps[i], width = 50)
         times = np.add(times,time_matrix[i])
         prefix_sum_times.append(times)
     
     
     plt.xlabel("processors")
     plt.ylabel("time in ms")
-    plt.title("time of different steps in tree rooting algorithm")
+    plt.title("time of different steps in " + algorithm_name + " algorithm")
     plt.legend()
     
  
 
-    plt.savefig(save_dir + "wood.pdf")
+    plt.savefig("time_step_" + algorithm_name + ".pdf")
     plt.clf()
     
+
+paths = [path1, path2, path3, path4, path5, path6]
+names = ["regular_ruling_set", "regular_ruling_set_rec", "regular_ruling_set2", "regular_ruling_set2_rec", "euler_tour", "wood_regular_ruling_set"]
+
+#for i in range(len(paths)):
+    #generate_time_step_graph(paths[i], "time_step_" + names[i])
+
+for i in range(len(paths)):    
+    processors, times = get_PE_total_time_tuple(paths[i])
     
+    processors = processors[7:]
+    times = times[7:]
     
+    width = 25
+    processors_shifed = [p + i * width for p in processors]
+    plt.bar(processors_shifed, times, label=names[i], width = width)
+
+plt.xlabel("processors")
+plt.ylabel("time in ms")
+plt.title("time of different algorithms on random list")
+plt.legend()
 
 
-generate_time_step_graph(path2)
+
+plt.savefig("all.pdf")
+
+
+
+#generate_time_step_graph(path2)
 
 
 for n in [1000000]:
