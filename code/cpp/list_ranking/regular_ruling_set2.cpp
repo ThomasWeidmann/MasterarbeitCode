@@ -31,7 +31,7 @@ class regular_ruling_set2
 		num_local_vertices = s.size();
 		node_offset = rank * num_local_vertices;
 		
-		std::vector<std::string> categories = {"local_work", "communication"};
+		std::vector<std::string> categories = {"local_work", "communication", "other"};
 		timer timer("ruler_pakete_senden", categories, "local_work", "regular_ruling_set2");
 		
 		timer.add_info(std::string("dist_rulers"), std::to_string(dist_rulers));
@@ -101,7 +101,8 @@ class regular_ruling_set2
 			for (packet& packet: out_buffer)
 				std::cout << "(" << packet.ruler_source << "," << packet.destination << "," << packet.distance << "),";
 			std::cout << std::endl;*/
-			
+			timer.add_checkpoint("iteration " + std::to_string(iteration));
+
 			
 			timer.switch_category("communication");
 			std::vector<packet> recv_buffer = comm.alltoallv(kamping::send_buf(out_buffer), kamping::send_counts(num_packets_per_PE)).extract_recv_buffer();
@@ -268,7 +269,7 @@ class regular_ruling_set2
 		}
 		
 		timer.add_checkpoint("rekursion");
-
+		timer.switch_category("other");
 		std::vector<std::int64_t> ranks;
 		if (num_iterations == 2)
 		{
@@ -280,7 +281,7 @@ class regular_ruling_set2
 			irregular_pointer_doubling algorithm(s_rec, r_rec, targetPEs_rec, prefix_sum_num_vertices_per_PE);
 			ranks = algorithm.start(comm);	
 		}
-		
+		timer.switch_category("local_work");
 		timer.add_checkpoint("finalen_ranks_berechnen");
 
 		

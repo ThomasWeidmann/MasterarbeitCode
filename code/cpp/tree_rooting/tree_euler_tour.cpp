@@ -23,7 +23,7 @@ class tree_euler_tour
 	
 	std::vector<std::int64_t> start(kamping::Communicator<>& comm, std::vector<std::uint64_t>& s)
 	{
-		std::vector<std::string> categories = {"local_work", "communication"};
+		std::vector<std::string> categories = {"local_work", "communication", "other"};
 		timer timer("graph umdrehen", categories, "local_work", "tree_euler_tour");
 		
 		timer.add_info(std::string("dist_rulers"), std::to_string(dist_rulers));
@@ -276,11 +276,13 @@ class tree_euler_tour
 		
 		
 		timer.add_checkpoint("ruling_set");
+		timer.switch_category("other");
 
 		
 		//irregular_pointer_doubling algorithm(s_edges,all_edges_weights,targetPEs,prefix_sum_num_edges_per_PE);
 		irregular_ruling_set2 algorithm(s_edges, all_edges_weights, targetPEs, dist_rulers, prefix_sum_num_edges_per_PE);
 		std::vector<std::int64_t> ranks = algorithm.start(comm);
+		timer.switch_category("local_work");
 		
 		timer.add_checkpoint("final_ranks_berechnen");
 

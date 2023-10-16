@@ -5,14 +5,14 @@
 class regular_pointer_doubling
 {
 	struct node_request {
-		std::int32_t node;
-		std::int32_t mst;
+		std::uint64_t node;
+		std::uint64_t mst;
 	};
 
 	struct answer {
-		std::int32_t node;
-		std::int32_t r_of_mst;
-		std::int32_t mst_of_mst;
+		std::uint64_t node;
+		std::int64_t r_of_mst;
+		std::uint64_t mst_of_mst;
 		bool passive_of_mst;
 	};
 	
@@ -82,7 +82,9 @@ class regular_pointer_doubling
 		std::int32_t max_iteration = std::log2(num_global_vertices) + 2;
 		for (std::int32_t iteration = 0; iteration < max_iteration; iteration++)
 		{
-
+			
+			timer.add_checkpoint("iteration " + std::to_string(iteration));
+			
 			//zuerst request packets gezählt
 			std::fill(num_packets_per_PE.begin(), num_packets_per_PE.end(), 0);
 			for (std::int32_t local_index = 0; local_index < num_local_vertices;local_index++)
@@ -151,7 +153,7 @@ class regular_pointer_doubling
 			}
 	
 		}
-		//timer.finalize(comm);
+		//timer.finalize(comm, "regular_pointer_doubling");
 
 		/*
 		std::cout << rank << " mit rank array:\n";

@@ -22,7 +22,7 @@ class wood_regular_ruling_set2 //this is for trees
 	
 	wood_regular_ruling_set2(std::vector<std::uint64_t>& s, std::uint64_t comm_rounds, kamping::Communicator<>& comm)
 	{
-		std::vector<std::string> categories = {"local_work", "communication"};
+		std::vector<std::string> categories = {"local_work", "communication", "other"};
 		timer timer("graph_umdrehen", categories, "local_work", "wood_regular_ruling_set2");
 		
 		timer.add_info(std::string("comm_rounds"), std::to_string(comm_rounds));
@@ -190,8 +190,12 @@ class wood_regular_ruling_set2 //this is for trees
 		timer.add_checkpoint("pakete_verfolgen");
 
 		bool work_left = true;
+		std::uint32_t iteration = 0;
 		while (any_PE_has_work(comm, work_left))
 		{
+			
+			timer.add_checkpoint("iteration " + std::to_string(iteration++));
+
 			/*
 			std::cout << rank << " in iteration " << iteration << " with following packages:\n";
 			for (packet& packet: out_buffer)
@@ -372,10 +376,12 @@ class wood_regular_ruling_set2 //this is for trees
 			std::cout << i + prefix_sum_num_vertices_per_PE[rank] << " s_rec:" << s_rec[i] << ", r_rec:" << r_rec[i] << std::endl;
 		*/
 		timer.add_checkpoint("rekursion");
+		timer.switch_category("other");
 
 		wood_irregular_pointer_doubling recursion(s_rec, r_rec, targetPEs_rec, prefix_sum_num_vertices_per_PE, comm, local_rulers);
 		std::fill(num_packets_per_PE.begin(), num_packets_per_PE.end(), 0);
 		timer.add_checkpoint("finalen_ranks_berechnen");
+		timer.switch_category("local_work");
 
 
 		//TODO finalen ranks berechnen mit request und inplace answer mit recursion.local_rulers und damit bessere Zeit wie gestern. git reset --hard, wenn bei wood_irregular_pointer_doubling was falsch

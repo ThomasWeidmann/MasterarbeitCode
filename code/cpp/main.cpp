@@ -28,6 +28,8 @@
 #include "interfaces.cpp"
 //#include "grid_all_to_all.cpp"
 
+//#include "indirect_alltoall/grid_alltoall.hpp"
+
 #include "list_ranking/regular_ruling_set.cpp"
 #include "list_ranking/regular_pointer_doubling.cpp"
 #include "list_ranking/sequential_list_ranking.cpp"

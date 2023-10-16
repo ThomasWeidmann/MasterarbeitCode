@@ -44,7 +44,7 @@ class regular_ruling_set : public list_ranking
 		
 		
 		
-		std::vector<std::string> categories = {"local_work", "communication"};
+		std::vector<std::string> categories = {"local_work", "communication", "other"};
 		timer timer("ruler_pakete_senden", categories, "local_work", "regular_ruling_set");
 		
 		timer.add_info("num_local_vertices", std::to_string(num_local_vertices));
@@ -115,7 +115,8 @@ class regular_ruling_set : public list_ranking
 		{
 			//if (rank ==  0) std::cout << "iteration " << iteration << " mit " << num_local_vertices - num_reached_nodes << std::endl;
 			
-			
+			timer.add_checkpoint("iteration " + std::to_string(iteration));
+
 			
 			std::fill(num_packets_per_PE.begin(), num_packets_per_PE.end(), 0);
 			more_nodes_reached = false;
@@ -207,7 +208,7 @@ class regular_ruling_set : public list_ranking
 		}
 	
 		timer.add_checkpoint("rekursion");
-
+		timer.switch_category("other");
 		std::vector<std::int64_t> result;
 		if (num_iterations == 1)
 		{
@@ -220,7 +221,7 @@ class regular_ruling_set : public list_ranking
 			result = algorithm.start(comm);
 		}
 		timer.add_checkpoint("finalen_ranks_berechnen");
-
+		timer.switch_category("local_work");
 		
 		for (std::int64_t local_index = 0; local_index < num_local_rulers; local_index++)
 		{
