@@ -189,7 +189,7 @@ class regular_pointer_doubling
 	
 	std::int32_t rank;
 	std::int32_t size;
-	std::int32_t num_global_vertices;
-	std::int32_t node_offset;
+	std::uint64_t num_global_vertices;
+	std::uint64_t node_offset;
 
 };
