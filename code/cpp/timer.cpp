@@ -170,10 +170,14 @@ class timer
 					all_final_times_from_one_checkpoint[j] = all_final_times[i + j*names.size()];
 				
 				
+				/*
 				output += "\"" + names[i] + "\"" + ":[" + std::to_string(all_final_times_from_one_checkpoint[0]);
 				for (int i = 1; i < comm.size(); i++)
 					output += "," + std::to_string(all_final_times_from_one_checkpoint[i]);
-				output += "],\n";	
+				output += "],\n";*/
+				
+				output += quote(names[i]) + ":" + get_output_string(all_final_times_from_one_checkpoint) + ",\n";
+				
 			}
 			
 		
@@ -201,7 +205,19 @@ class timer
 			output.pop_back();
 			output += "],\n";
 			
+			std::vector<uint64_t> all_final_times_from_one_category(comm.size());
+			for (int i = 0; i < local_categorial_times.size(); i++)
+			{
+				output += quote(categorial_names[i]) + ":";
+				for (int j = 0; j < comm.size(); j++)
+					all_final_times_from_one_category[j] = all_categorial_times[i + j*local_categorial_times.size()];
+				
+				output += get_output_string(all_final_times_from_one_category);
+				output += ",\n";
+			}
 			
+			
+			/*
 			for (int i = 0; i < local_categorial_times.size(); i++)
 			{
 				output += quote(categorial_names[i]) + ":[";
@@ -209,7 +225,7 @@ class timer
 					output += std::to_string(all_categorial_times[i + j*local_categorial_times.size()]) + ",";
 				output.pop_back();
 				output += "],\n";
-			}
+			}*/
 			
 			output.pop_back();
 			output.pop_back();
@@ -223,6 +239,35 @@ class timer
 			
 		
 		
+		
+	}
+	
+	
+	std::string get_output_string(std::vector<std::uint64_t> to_output)
+	{
+		bool everything = false; //output values from all PEs iff everything otherwise output [min, lower_quartil, median, upper_quartil, max]
+		std::string output = "[";
+		if (everything)
+		{
+			for (int i = 0; i < to_output.size(); i++)
+				output += std::to_string(to_output[i]) + ",";
+			output.pop_back();
+			output += "]";	
+		}
+		else
+		{
+			std::sort(to_output.begin(), to_output.end());
+			int parts = 9;
+			for (int i = 0; i < parts; i++)
+			{
+				int index = (i * (to_output.size() - 1)) / (parts - 1);
+				output += std::to_string(to_output[index]) + ",";
+			}
+			output.pop_back();
+			output += "]";
+		}
+		
+		return output;
 		
 	}
 

@@ -15,7 +15,7 @@
 here every PE must have the same number of nodes aka the length of successors is the same
 also dist_rulers >= 3
 */
-class regular_ruling_set : public list_ranking
+class regular_ruling_set
 {
 	struct packet {
 		std::int64_t ruler_source;
@@ -39,7 +39,7 @@ class regular_ruling_set : public list_ranking
 	}
 	
 	
-	std::vector<std::int64_t> start(kamping::Communicator<>& comm, std::vector<std::uint64_t>& successors)
+	std::vector<std::int64_t> start(kamping::Communicator<>& comm, std::vector<std::uint64_t>& successors, karam::mpi::GridCommunicator grid_comm)
 	{
 		
 		
@@ -115,7 +115,7 @@ class regular_ruling_set : public list_ranking
 		{
 			//if (rank ==  0) std::cout << "iteration " << iteration << " mit " << num_local_vertices - num_reached_nodes << std::endl;
 			
-			timer.add_checkpoint("iteration " + std::to_string(iteration));
+			//timer.add_checkpoint("iteration " + std::to_string(iteration));
 
 			
 			std::fill(num_packets_per_PE.begin(), num_packets_per_PE.end(), 0);
@@ -213,12 +213,12 @@ class regular_ruling_set : public list_ranking
 		if (num_iterations == 1)
 		{
 			regular_pointer_doubling algorithm(s_rec, r_rec, local_index_final_node);
-			result = algorithm.start(comm);
+			result = algorithm.start(comm, grid_comm);
 		}
 		else
 		{
 			regular_ruling_set_rec algorithm(s_rec, r_rec, local_index_final_node, distance_rulers);
-			result = algorithm.start(comm);
+			result = algorithm.start(comm, grid_comm);
 		}
 		timer.add_checkpoint("finalen_ranks_berechnen");
 		timer.switch_category("local_work");

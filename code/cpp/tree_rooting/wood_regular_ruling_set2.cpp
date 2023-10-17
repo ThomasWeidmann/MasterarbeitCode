@@ -194,7 +194,7 @@ class wood_regular_ruling_set2 //this is for trees
 		while (any_PE_has_work(comm, work_left))
 		{
 			
-			timer.add_checkpoint("iteration " + std::to_string(iteration++));
+			//timer.add_checkpoint("iteration " + std::to_string(iteration++));
 
 			/*
 			std::cout << rank << " in iteration " << iteration << " with following packages:\n";

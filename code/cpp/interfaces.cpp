@@ -1,10 +1,12 @@
 #pragma once
 
-class list_ranking
+template <typename T> 
+class communicator
 {
 	public:
 	
-	virtual std::vector<std::int64_t> start(kamping::Communicator<>& comm, std::vector<std::uint64_t>& successors) = 0;
+	virtual std::vector<std::int32_t> extract_recv_counts() = 0;
+	virtual std::vector<T> extract_recv_buffer() = 0;
 	
 	
 };

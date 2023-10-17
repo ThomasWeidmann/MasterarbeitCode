@@ -1,5 +1,6 @@
 #pragma once
 
+#include "../helper_functions.cpp"
 
 
 class regular_pointer_doubling
@@ -52,7 +53,7 @@ class regular_pointer_doubling
 	}
 	
 	
-	std::vector<std::int64_t> start(kamping::Communicator<>& comm)
+	std::vector<std::int64_t> start(kamping::Communicator<>& comm, karam::mpi::GridCommunicator grid_comm)
 	{
 		std::vector<std::string> categories = {"local_work", "communication"};
 		timer timer("start", categories, "local_work", "regular_pointer_doubling");
@@ -83,7 +84,7 @@ class regular_pointer_doubling
 		for (std::int32_t iteration = 0; iteration < max_iteration; iteration++)
 		{
 			
-			timer.add_checkpoint("iteration " + std::to_string(iteration));
+			//timer.add_checkpoint("iteration " + std::to_string(iteration));
 			
 			//zuerst request packets gezählt
 			std::fill(num_packets_per_PE.begin(), num_packets_per_PE.end(), 0);
@@ -112,7 +113,8 @@ class regular_pointer_doubling
 			}
 			timer.switch_category("communication");
 		
-			std::vector<node_request> recv_requests = comm.alltoallv(kamping::send_buf(requests), kamping::send_counts(num_packets_per_PE)).extract_recv_buffer();
+			std::vector<node_request> recv_requests = alltoall(num_packets_per_PE, requests, comm, grid_comm).extract_recv_buffer();
+			//std::vector<node_request> recv_requests = comm.alltoallv(kamping::send_buf(requests), kamping::send_counts(num_packets_per_PE)).extract_recv_buffer();
 			timer.switch_category("local_work");
 
 			//dann answers gezählt
@@ -139,7 +141,8 @@ class regular_pointer_doubling
 			}
 			timer.switch_category("communication");
 	
-			std::vector<answer> recv_answers = comm.alltoallv(kamping::send_buf(answers), kamping::send_counts(num_packets_per_PE)).extract_recv_buffer();
+			std::vector<answer> recv_answers = alltoall(num_packets_per_PE, answers, comm, grid_comm).extract_recv_buffer();
+			//std::vector<answer> recv_answers = comm.alltoallv(kamping::send_buf(answers), kamping::send_counts(num_packets_per_PE)).extract_recv_buffer();
 			timer.switch_category("local_work");
 				//dann answers eingetragen
 			
@@ -153,7 +156,7 @@ class regular_pointer_doubling
 			}
 	
 		}
-		//timer.finalize(comm, "regular_pointer_doubling");
+		timer.finalize(comm, "regular_pointer_doubling");
 
 		/*
 		std::cout << rank << " mit rank array:\n";

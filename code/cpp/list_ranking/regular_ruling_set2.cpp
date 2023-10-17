@@ -101,7 +101,7 @@ class regular_ruling_set2
 			for (packet& packet: out_buffer)
 				std::cout << "(" << packet.ruler_source << "," << packet.destination << "," << packet.distance << "),";
 			std::cout << std::endl;*/
-			timer.add_checkpoint("iteration " + std::to_string(iteration));
+			//timer.add_checkpoint("iteration " + std::to_string(iteration));
 
 			
 			timer.switch_category("communication");

@@ -26,9 +26,11 @@
 #include "generator.cpp"
 #include "test.cpp"
 #include "interfaces.cpp"
-//#include "grid_all_to_all.cpp"
 
-//#include "indirect_alltoall/grid_alltoall.hpp"
+#include "grid_all_to_all.cpp"
+#include "helper_functions.cpp"
+
+//#include "karam/mpi/grid_alltoall.hpp"
 
 #include "list_ranking/regular_ruling_set.cpp"
 #include "list_ranking/regular_pointer_doubling.cpp"
@@ -43,12 +45,25 @@
 
 int mpi_rank, mpi_size;
 
+/*
+template <typename T>
+auto normal_alltoall(std::vector<std::int32_t>& num_packets_per_PE, std::vector<T>& send, kamping::Communicator<>& comm, karam::mpi::GridCommunicator& grid_comm)
+{
+	return comm.alltoallv(kamping::send_buf(send), kamping::send_counts(num_packets_per_PE));
+}
+
+template <typename T>
+auto grid_alltoall(std::vector<std::int32_t>& num_packets_per_PE, std::vector<T>& send, kamping::Communicator<>& comm, karam::mpi::GridCommunicator& grid_comm)
+{
+	my_grid<T>* grid;
+	grid = new my_grid<T>();
+	
+	grid->send(num_packets_per_PE, send, grid_comm, comm);
+	
+	return *grid;
+}*/
 
 
-
-std::vector<std::uint64_t> generate_regular_successor_vector(std::uint64_t num_local_vertices);
-std::vector<std::uint64_t> generate_regular_wood_vector(std::uint64_t num_local_vertices, kamping::Communicator<>& comm);
-std::vector<std::uint64_t> generate_regular_tree_vector(std::uint64_t num_local_vertices, kamping::Communicator<>& comm);
 
 
 void error(std::string output)
@@ -69,6 +84,8 @@ int main(int argc, char* argv[]) {
 	
 	kamping::Environment e;
 	kamping::Communicator<> comm;
+	
+
 	std::string ruling_set = "ruling_set";
 	std::string ruling_set_rec = "ruling_set_rec";
 	std::string ruling_set2 = "ruling_set2";
@@ -85,6 +102,8 @@ int main(int argc, char* argv[]) {
 	}
 	else
 	{
+		//grid_comm weird behavior has to be declared not in the same scope as mpi_finalize
+		karam::mpi::GridCommunicator grid_comm;
 		if (ruling_set.compare(argv[1]) == 0)
 		{
 			
@@ -93,7 +112,7 @@ int main(int argc, char* argv[]) {
 			std::int64_t dist_rulers = atoi(argv[3]);
 			std::vector<std::uint64_t> s = generator::generate_regular_successor_vector(num_local_vertices, comm);
 			regular_ruling_set algorithm = regular_ruling_set(s, dist_rulers, 1);
-			std::vector<std::int64_t> d = algorithm.start(comm, s);
+			std::vector<std::int64_t> d = algorithm.start(comm, s, grid_comm);
 			test::regular_test(comm, s, d);
 		}
 		else if (ruling_set_rec.compare(argv[1]) == 0)
@@ -106,7 +125,7 @@ int main(int argc, char* argv[]) {
 
 			regular_ruling_set algorithm = regular_ruling_set(s, dist_rulers, 2);
 			
-			std::vector<std::int64_t> d = algorithm.start(comm, s);
+			std::vector<std::int64_t> d = algorithm.start(comm, s, grid_comm);
 			
 			test::regular_test(comm, s, d);
 		}
@@ -139,7 +158,7 @@ int main(int argc, char* argv[]) {
 			std::vector<std::uint64_t> s = generator::generate_regular_successor_vector(num_local_vertices, comm);
 			regular_pointer_doubling algorithm(s, comm);
 			
-			std::vector<std::int64_t> d = algorithm.start(comm);
+			std::vector<std::int64_t> d = algorithm.start(comm, grid_comm);
 			
 			test::regular_test(comm, s, d);
 		}
@@ -154,7 +173,7 @@ int main(int argc, char* argv[]) {
 		else if (tree_rooting.compare(argv[1]) == 0)
 		{
 			std::int32_t num_local_vertices = atoi(argv[2]);
-			std::vector<std::uint64_t> tree_vector = generator::generate_regular_successor_vector(num_local_vertices, comm);
+			std::vector<std::uint64_t> tree_vector = generator::generate_regular_tree_vector(num_local_vertices, comm);
 			std::int32_t dist_rulers = atoi(argv[3]);
 			std::vector<std::int64_t> d = wood_regular_ruling_set2(tree_vector, dist_rulers, comm).result_dist;
 			
@@ -164,7 +183,7 @@ int main(int argc, char* argv[]) {
 		{
 			std::uint64_t num_local_vertices = atoi(argv[2]);
 			std::int32_t dist_rulers = atoi(argv[3]);
-			std::vector<std::uint64_t> tree_vector = generator::generate_regular_successor_vector(num_local_vertices, comm);
+			std::vector<std::uint64_t> tree_vector = generator::generate_regular_tree_vector(num_local_vertices, comm);
 
 			std::vector<std::int64_t> d = tree_euler_tour(comm, tree_vector, dist_rulers).start(comm, tree_vector);
 			test::regular_test(comm, tree_vector, d);
@@ -178,21 +197,38 @@ int main(int argc, char* argv[]) {
 		else 
 		{
 			/*
-			struct test{
-				std::uint64_t i;
-				std::uint64_t j;
-			};
-			std::vector<test> testvector(4, {comm.rank(), comm.size()});
+			std::vector<std::int32_t> num_packets_per_PE(mpi_size,1);
+			std::vector<std::uint64_t> send(mpi_size, 0);
+			std::iota(send.begin(), send.end(), 0);
+			karam::mpi::GridCommunicator grid_comm;
+			std::vector<std::int32_t> recv = grid_alltoall(num_packets_per_PE, send, comm, grid_comm).extract_recv_counts();
 			
-			grid_all_to_all<test> grid;
-			
-			std::vector<std::int32_t> send_counts(4,1);
-			std::vector<test> recv = grid.comm(comm, send_counts, testvector);
-			std::cout << comm.rank() << ":";
+			std::cout << "PE " << comm.rank() << " with:";
 			for (int i = 0; i < recv.size(); i++)
-				std::cout << "(" << recv[i].i << "," << recv[i].j << "),";
+				std::cout << recv[i] << ",";
 			std::cout << std::endl;*/
-			error(std::string(argv[1]) + " is not a name of an algorithm or wrong parameters");
+			
+			
+			
+			/*
+			karam::mpi::GridCommunicator grid_comm;
+
+			
+			std::vector<std::uint64_t> send(mpi_size, 0);
+			std::iota(send.begin(), send.end(), 0);
+
+			std::vector<int> input = {1,2,3};
+			auto get_destination = [](const std::uint64_t& e) {
+				return e;
+			};
+
+			auto result = grid_mpi_all_to_all(send, get_destination, grid_comm).extract_recv_buffer();
+			std::cout << "PE " << mpi_rank << " with "<< result.size() << std::endl;
+			for (int i = 0; i < result.size(); i++)
+				std::cout << result[i].payload() << ",";
+			std::cout << std::endl;
+			*/
+			//error(std::string(argv[1]) + " is not a name of an algorithm or wrong parameters");
 		}
 	}
 	

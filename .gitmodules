@@ -4,3 +4,6 @@
 [submodule "extern/KaGen"]
 	path = extern/KaGen
 	url = https://github.com/KarlsruheGraphGeneration/KaGen.git
+[submodule "KaRAM"]
+	path = KaRAM
+	url = git@github.com:mschimek/KaRAM.git

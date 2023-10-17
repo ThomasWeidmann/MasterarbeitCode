@@ -7,10 +7,10 @@
 #include <kamping/collectives/barrier.hpp>
 #include <kamping/communicator.hpp>
 
-#include "karam/mpi/communication_concepts.hpp"
-#include "karam/mpi/indirect_all_to_all/grid_communication_helpers.hpp"
-#include "karam/utils/containers.hpp"
-#
+#include "../communication_concepts.hpp"
+#include "grid_communication_helpers.hpp"
+#include "../../utils/containers.hpp"
+
 
 namespace karam::mpi {
 template <

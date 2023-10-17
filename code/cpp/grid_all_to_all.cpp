@@ -1,33 +1,68 @@
-template <typename T>
-class grid_all_to_all
+#include "karam/mpi/grid_alltoall.hpp"
+
+template <typename T> 
+class my_grid
 {
 	public:
 	
-	
-	std::vector<T> comm(kamping::Communicator<>& comm, std::vector<std::int32_t> num_packets_per_PE, std::vector<T> send_buffer)
+	void grid_send(std::vector<std::int32_t>& num_packets_per_PE, std::vector<T>& send, karam::mpi::GridCommunicator& grid_com, kamping::Communicator<>& comm)
 	{
-		std::vector<std::int32_t> ranks(2);
-		for (int i = 0; i < 2; i++)
-			ranks[i] = (comm.rank() % 2) + 2*i;
+		struct send_element
+		{
+			T value;
+			std::int32_t target_PE;
+		};
 		
-		std::cout << "PE " << comm.rank() << ":[";
-		for (int i = 0; i < 2; i++)
-			std::cout << ranks[i] << ",";
-		std::cout << std::endl;
+		std::vector<send_element> real_send(send.size());
+		for (std::uint32_t i = 0; i < send.size(); i++)
+		{
+			real_send[i].value = send[i];
+		}
 		
-		//kamping::RankRange range = {1,2,3};
-		//kamping::RankRanges ranges(range);
-		
-		kamping::Communicator<> comm2 = comm.create_subcommunicators(ranks);
-		
-		std::vector<std::int32_t> send_counts = {2,2};
+		std::uint32_t index = 0;
+		for (std::uint32_t i = 0; i < comm.size(); i++)
+			for (std::uint32_t j = 0; j < num_packets_per_PE[i]; j++)
+				real_send[index++].target_PE = i;
 		
 		
-		return comm2.alltoallv(kamping::send_buf(send_buffer), kamping::send_counts(send_counts)).extract_recv_buffer();
-		mpirun -np 4 code d
+		
+		auto get_destination = [](const send_element& e) {
+			return e.target_PE;
+		};
+
+		//std::vector<karam::mpi::IndirectMessage<send_element>> result = grid_mpi_all_to_all(real_send, get_destination, grid_com).extract_recv_buffer();
+		std::vector<karam::mpi::IndirectMessage<send_element>> result = grid_mpi_all_to_all(real_send, get_destination, grid_com).extract_recv_buffer();
+
+		
+		recv_counts = std::vector<std::int32_t>(comm.size());
+		recv_buffer = std::vector<T>(result.size());
+		
+		for (std::uint32_t i = 0; i < result.size(); i++)
+		{
+			recv_buffer[i] = result[i].payload().value;
+			recv_counts[result[i].get_source()]++;
+		}
+	
+		
+	
+	}
+	
+	
+	std::vector<std::int32_t>& extract_recv_counts()
+	{
+		return recv_counts;
+	}
+	
+	std::vector<T>& extract_recv_buffer()
+	{
+		return recv_buffer;
 	}
 	
 	private:
-
-
+	
+	std::vector<std::int32_t> recv_counts;
+	std::vector<T> recv_buffer;
+	
+	
+	
 };

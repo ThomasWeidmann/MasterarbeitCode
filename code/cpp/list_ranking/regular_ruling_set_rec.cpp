@@ -42,7 +42,7 @@ class regular_ruling_set_rec
 	}
 	
 	
-	std::vector<std::int64_t> start(kamping::Communicator<>& comm)
+	std::vector<std::int64_t> start(kamping::Communicator<>& comm, karam::mpi::GridCommunicator grid_comm)
 	{
 		
 		std::vector<std::string> categories = {"local_work", "communication"};
@@ -250,7 +250,7 @@ class regular_ruling_set_rec
 		timer.add_checkpoint("rekursion");
 
 		regular_pointer_doubling algorithm(s_rec, r_rec, local_index_final_node_rec);
-		std::vector<std::int64_t> result = algorithm.start(comm);
+		std::vector<std::int64_t> result = algorithm.start(comm, grid_comm);
 		timer.add_checkpoint("finalen_ranks_berechnen");
 
 		for (std::int32_t local_index = 0; local_index < num_local_rulers; local_index++)
