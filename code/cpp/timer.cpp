@@ -101,10 +101,7 @@ class timer
 		comm.gather(kamping::send_buf(total_time), kamping::recv_buf<kamping::resize_to_fit>(total_times), kamping::root(0));
 		if (comm.rank() == 0)
 		{
-			output += quote("total_time") + ":[" + std::to_string(total_times[0]);
-			for (std::uint32_t i = 1; i < comm.size(); i++)
-				output += "," + std::to_string(total_times[i]);
-			output += "],\n";
+			output += quote("total_time") + ":" + get_output_string(total_times) +",\n";
 		}
 		
 		
@@ -257,7 +254,7 @@ class timer
 		else
 		{
 			std::sort(to_output.begin(), to_output.end());
-			int parts = 9;
+			int parts = 5;
 			for (int i = 0; i < parts; i++)
 			{
 				int index = (i * (to_output.size() - 1)) / (parts - 1);
