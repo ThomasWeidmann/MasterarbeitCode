@@ -27,14 +27,18 @@ class generator
 		std::uint64_t mpi_rank = comm.rank();
 		std::uint64_t mpi_size = comm.size();
 		
-		std::int32_t max_edge_weight = 12345678; 
+		std::int32_t max_edge_weight = 150; 
 		std::uint64_t node_offset = mpi_rank * num_local_vertices;
 		kagen::KaGen gen(MPI_COMM_WORLD);
 		
 		double prob = std::log(num_local_vertices) / ((double) num_local_vertices * mpi_size);
 		prob = prob > 1 ? 1 : prob;
+		prob = 30 / ((double) num_local_vertices * mpi_size);
+		prob = prob > 1 ? 1 : prob;
+		//GNM
+		//auto graph = gen.GenerateUndirectedGNP(num_local_vertices * mpi_size, prob, false);
+		auto graph = gen.GenerateUndirectedGNM(num_local_vertices * mpi_size, 20 * num_local_vertices * mpi_size, false);
 		
-		auto graph = gen.GenerateUndirectedGNP(num_local_vertices * mpi_size, prob, false);
 		//now every edge finds edge with lowest edge weight
 		std::vector<std::uint64_t> s(num_local_vertices); //s[i] will be the node j that minimizes c(i,j) with
 		std::iota(s.begin(), s.end(), node_offset);

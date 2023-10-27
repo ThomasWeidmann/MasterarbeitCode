@@ -29,6 +29,7 @@
 
 #include "grid_all_to_all.cpp"
 #include "helper_functions.cpp"
+#include "analyze_instances.cpp"
 
 //#include "karam/mpi/grid_alltoall.hpp"
 
@@ -42,6 +43,8 @@
 #include "tree_rooting/wood_regular_ruling_set2.cpp"
 
 #include "tree_rooting/tree_euler_tour.cpp"
+#include "tree_rooting/forest_euler_tour.cpp"
+#include "tree_rooting/forest_load_balance_regular_ruling_set2.cpp"
 
 int mpi_rank, mpi_size;
 
@@ -94,7 +97,8 @@ int main(int argc, char* argv[]) {
 	std::string pointer_doubling = "pointer_doubling";
 	std::string tree_rooting = "tree_rooting";
 	std::string euler_tour = "euler_tour";
-	std::string init_mpi = "init_mpi";
+	std::string forest_rooting_euler = "forest_euler_tour";
+	std::string lb_tree_rooting = "lb_tree_rooting";
 	
 	if (argc < 2)
 	{
@@ -102,7 +106,9 @@ int main(int argc, char* argv[]) {
 	}
 	else
 	{
-		//grid_comm weird behavior has to be declared not in the same scope as mpi_finalize
+		std::vector<std::uint64_t> send_buf(comm.size(),std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count());
+		std::vector<std::int32_t> send_counts(comm.size(),1);
+		auto recv = comm.alltoallv(kamping::send_buf(send_buf), kamping::send_counts(send_counts)).extract_recv_buffer();
 		karam::mpi::GridCommunicator grid_comm;
 		if (ruling_set.compare(argv[1]) == 0)
 		{
@@ -173,11 +179,12 @@ int main(int argc, char* argv[]) {
 		else if (tree_rooting.compare(argv[1]) == 0)
 		{
 			std::int32_t num_local_vertices = atoi(argv[2]);
-			std::vector<std::uint64_t> tree_vector = generator::generate_regular_tree_vector(num_local_vertices, comm);
+			std::vector<std::uint64_t> tree_vector = generator::generate_regular_wood_vector(num_local_vertices, comm);
 			std::int32_t dist_rulers = atoi(argv[3]);
 			std::vector<std::int64_t> d = wood_regular_ruling_set2(tree_vector, dist_rulers, comm).result_dist;
 			
-			test::regular_test(comm, tree_vector, d);
+			analyze_instances::analyze_regular_instance(tree_vector, comm);
+			//test::regular_test(comm, tree_vector, d);
 		}
 		else if (euler_tour.compare(argv[1]) == 0)
 		{
@@ -188,12 +195,28 @@ int main(int argc, char* argv[]) {
 			std::vector<std::int64_t> d = tree_euler_tour(comm, tree_vector, dist_rulers).start(comm, tree_vector);
 			test::regular_test(comm, tree_vector, d);
 		}
-		else if (init_mpi.compare(argv[1]) == 0)
+		else if (lb_tree_rooting.compare(argv[1]) == 0)
 		{
-			std::vector<std::uint64_t> send_buf(comm.size(),std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count());
-			std::vector<std::int32_t> send_counts(comm.size(),1);
-			auto recv = comm.alltoallv(kamping::send_buf(send_buf), kamping::send_counts(send_counts)).extract_recv_buffer();
-		}	
+			std::uint64_t num_local_vertices = atoi(argv[2]);
+			std::int32_t dist_rulers = atoi(argv[3]);
+			std::vector<std::uint64_t> s = generator::generate_regular_tree_vector(num_local_vertices, comm);
+
+			forest_load_balance_regular_ruling_set2(dist_rulers).start(s,comm);
+			
+		}
+		else if (forest_rooting_euler.compare(argv[1]) == 0)
+		{
+			std::uint64_t num_local_vertices = atoi(argv[2]);
+			std::int32_t dist_rulers = atoi(argv[3]);
+			std::vector<std::uint64_t> s = generator::generate_regular_wood_vector(num_local_vertices, comm);
+
+			std::vector<std::int64_t> d = forest_euler_tour(comm, s, dist_rulers).start(comm, s);
+			test::regular_test(comm, s, d);
+			
+			analyze_instances::analyze_regular_instance(s, comm);
+
+			
+		}
 		else 
 		{
 			/*
@@ -228,7 +251,7 @@ int main(int argc, char* argv[]) {
 				std::cout << result[i].payload() << ",";
 			std::cout << std::endl;
 			*/
-			//error(std::string(argv[1]) + " is not a name of an algorithm or wrong parameters");
+			error(std::string(argv[1]) + " is not a name of an algorithm or wrong parameters");
 		}
 	}
 	

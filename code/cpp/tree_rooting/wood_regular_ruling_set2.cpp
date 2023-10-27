@@ -1,3 +1,5 @@
+#pragma once
+
 #include "wood_irregular_pointer_doubling.cpp"
 
 class wood_regular_ruling_set2 //this is for trees
@@ -378,7 +380,11 @@ class wood_regular_ruling_set2 //this is for trees
 		timer.add_checkpoint("rekursion");
 		timer.switch_category("other");
 
-		wood_irregular_pointer_doubling recursion(s_rec, r_rec, targetPEs_rec, prefix_sum_num_vertices_per_PE, comm, local_rulers);
+		std::vector<std::uint64_t> local_rulers_global_index = local_rulers;
+		for (std::uint32_t i = 0; i < local_rulers.size(); i++)
+			local_rulers_global_index[i] += node_offset;
+
+		wood_irregular_pointer_doubling recursion(s_rec, r_rec, targetPEs_rec, prefix_sum_num_vertices_per_PE, comm, local_rulers_global_index);
 		std::fill(num_packets_per_PE.begin(), num_packets_per_PE.end(), 0);
 		timer.add_checkpoint("finalen_ranks_berechnen");
 		timer.switch_category("local_work");
@@ -434,7 +440,7 @@ class wood_regular_ruling_set2 //this is for trees
 			
 		}
 		
-		timer.finalize(comm, "wood_regular_ruling_set2");
+		//timer.finalize(comm, "wood_regular_ruling_set2");
 
 		
 	}
