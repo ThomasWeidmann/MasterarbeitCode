@@ -178,8 +178,9 @@ auto grid_mpi_all_to_all(
   auto rowwise_recv_buf    = mpi_result_rowwise.extract_recv_buffer();
   auto rowwise_recv_counts = mpi_result_rowwise.extract_recv_counts();
   auto rowwise_recv_displs = mpi_result_rowwise.extract_recv_displs();
-
+	std::cout << "richtig funktion" << std::endl;
   return columnwise_exchange(rowwise_recv_buf, grid_comm);
 }
+
 
 } // namespace karam::mpi

@@ -120,12 +120,16 @@ auto rowwise_exchange(
       contiguous_send_buf[static_cast<std::size_t>(idx)] = elem;
     }
   }
+	
 
+	
   return grid_comm.row_comm().alltoallv(
     kamping::send_buf(contiguous_send_buf),
     kamping::send_counts(send_counts)
   );
 }
+
+
 
 template <typename IntermediateRecvBuffer>
 auto columnwise_exchange(IntermediateRecvBuffer&& recv_buf, GridCommunicator const& grid_comm) {

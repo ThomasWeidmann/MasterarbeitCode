@@ -38,6 +38,7 @@
 #include "list_ranking/sequential_list_ranking.cpp"
 #include "list_ranking/regular_ruling_set2.cpp"
 
+#include "grid_list_ranking/grid_regular_ruling_set2.cpp"
 
 
 #include "tree_rooting/wood_regular_ruling_set2.cpp"
@@ -48,23 +49,7 @@
 
 int mpi_rank, mpi_size;
 
-/*
-template <typename T>
-auto normal_alltoall(std::vector<std::int32_t>& num_packets_per_PE, std::vector<T>& send, kamping::Communicator<>& comm, karam::mpi::GridCommunicator& grid_comm)
-{
-	return comm.alltoallv(kamping::send_buf(send), kamping::send_counts(num_packets_per_PE));
-}
 
-template <typename T>
-auto grid_alltoall(std::vector<std::int32_t>& num_packets_per_PE, std::vector<T>& send, kamping::Communicator<>& comm, karam::mpi::GridCommunicator& grid_comm)
-{
-	my_grid<T>* grid;
-	grid = new my_grid<T>();
-	
-	grid->send(num_packets_per_PE, send, grid_comm, comm);
-	
-	return *grid;
-}*/
 
 
 
@@ -100,6 +85,8 @@ int main(int argc, char* argv[]) {
 	std::string forest_rooting_euler = "forest_euler_tour";
 	std::string lb_tree_rooting = "lb_tree_rooting";
 	std::string grid_test = "grid_test";
+	std::string grid_ruling_set2 = "grid_ruling_set2";
+	std::string grid_ruling_set2_rec = "grid_ruling_set2_rec";
 	
 	if (argc < 2)
 	{
@@ -143,6 +130,28 @@ int main(int argc, char* argv[]) {
 			std::vector<std::uint64_t> s = generator::generate_regular_successor_vector(num_local_vertices, comm);
 			regular_ruling_set2 algorithm(s, dist_rulers, 1);
 			std::vector<std::int64_t> d = algorithm.start(comm);
+			
+			test::regular_test(comm, s, d);
+
+		}
+		else if (grid_ruling_set2.compare(argv[1]) == 0)
+		{
+			std::int32_t num_local_vertices = atoi(argv[2]);
+			std::int32_t dist_rulers = atoi(argv[3]);
+			std::vector<std::uint64_t> s = generator::generate_regular_successor_vector(num_local_vertices, comm);
+			grid_regular_ruling_set2 algorithm(s, dist_rulers, 1);
+			std::vector<std::int64_t> d = algorithm.start(comm, grid_comm);
+			
+			test::regular_test(comm, s, d);
+
+		}
+		else if (grid_ruling_set2_rec.compare(argv[1]) == 0)
+		{
+			std::int32_t num_local_vertices = atoi(argv[2]);
+			std::int32_t dist_rulers = atoi(argv[3]);
+			std::vector<std::uint64_t> s = generator::generate_regular_successor_vector(num_local_vertices, comm);
+			grid_regular_ruling_set2 algorithm(s, dist_rulers, 2);
+			std::vector<std::int64_t> d = algorithm.start(comm, grid_comm);
 			
 			test::regular_test(comm, s, d);
 
@@ -251,7 +260,7 @@ int main(int argc, char* argv[]) {
 			std::vector<std::int32_t> send_displacements(mpi_size + 1,0);
 			for (int times = 1; times <= 100000; times *= 10)
 			{
-				timer.add_checkpoint("normal_times_" + std::to_string(times));
+				timer.add_checkpoint("my_grid_times_" + std::to_string(times));
 				for (int i = 0; i < times; i++)
 				{
 					std::fill(num_packets_per_PE.begin(), num_packets_per_PE.end(), 0);
@@ -272,8 +281,10 @@ int main(int argc, char* argv[]) {
 						std::int64_t packet_index = send_displacements[targetPE] + num_packets_per_PE[targetPE]++;
 						send[packet_index] = s[i2];
 					}
-		
-					auto recv = comm.alltoallv(kamping::send_buf(send), kamping::send_counts(num_packets_per_PE));
+					auto result = my_grid_all_to_all(send, num_packets_per_PE, grid_comm,comm).extract_recv_buffer();
+
+					//auto recv = comm.alltoallv(kamping::send_buf(send), kamping::send_counts(num_packets_per_PE)).extract_recv_buffer();
+				
 				}
 				
 			}
@@ -283,7 +294,23 @@ int main(int argc, char* argv[]) {
 		}
 		else
 		{
+			std::vector<int> send(mpi_size);
+			std::iota(send.begin(), send.end(), 0);
+			auto get_destination = [](const std::uint64_t& e) {
+				return e;
+			};
+	
+			std::vector<std::int32_t> send_counts(mpi_size,1);
 			
+			//std::vector<karam::mpi::IndirectMessage<int>> result2 = grid_mpi_all_to_all(send, get_destination, grid_comm).extract_recv_buffer();
+			
+			auto result = my_grid_all_to_all(send, send_counts, grid_comm,comm).extract_recv_buffer();
+			
+			
+			std::cout << mpi_rank << " with:";
+			for (int i = 0; i < result.size(); i++)
+				std::cout << result[i] << " ";
+			std::cout << std::endl;
 			/*
 			std::vector<std::int32_t> num_packets_per_PE(mpi_size,1);
 			std::vector<std::uint64_t> send(mpi_size, 0);
@@ -316,7 +343,7 @@ int main(int argc, char* argv[]) {
 				std::cout << result[i].payload() << ",";
 			std::cout << std::endl;
 			*/
-			error(std::string(argv[1]) + " is not a name of an algorithm or wrong parameters");
+			//error(std::string(argv[1]) + " is not a name of an algorithm or wrong parameters");
 		}
 	}
 	
