@@ -99,6 +99,7 @@ int main(int argc, char* argv[]) {
 	std::string euler_tour = "euler_tour";
 	std::string forest_rooting_euler = "forest_euler_tour";
 	std::string lb_tree_rooting = "lb_tree_rooting";
+	std::string grid_test = "grid_test";
 	
 	if (argc < 2)
 	{
@@ -217,8 +218,72 @@ int main(int argc, char* argv[]) {
 
 			
 		}
-		else 
+		else if (grid_test.compare(argv[1]) == 0)
 		{
+			std::uint64_t const num_local_vertices = 1000000;
+			
+
+			
+			std::vector<std::string> categories = {"calc, other"};
+			timer timer("test_array_erstellen", categories, "calc", "grid_test");
+			
+			std::vector<std::uint64_t> s = generator::generate_regular_successor_vector(num_local_vertices, comm);
+			
+		
+			for (int times = 1; times <= 100000; times *= 10)
+			{
+				//times means the number of all_to_all operations
+				//when times=1000, the send array is divided into 1000 pieces and send independently
+				
+				auto get_destination = [](const std::uint64_t& e) {
+					return e / 1000000;
+				};
+				timer.add_checkpoint("grid_times_" + std::to_string(times));
+				for (int i = 0; i < times; i++)
+				{
+					std::vector<std::uint64_t> send(&s[i * num_local_vertices / times], &s[(i+1) * num_local_vertices / times]);
+					auto result = grid_mpi_all_to_all(send, get_destination, grid_comm).extract_recv_buffer();
+				}
+								
+			}
+			
+			std::vector<std::int32_t> num_packets_per_PE(mpi_size,0);
+			std::vector<std::int32_t> send_displacements(mpi_size + 1,0);
+			for (int times = 1; times <= 100000; times *= 10)
+			{
+				timer.add_checkpoint("normal_times_" + std::to_string(times));
+				for (int i = 0; i < times; i++)
+				{
+					std::fill(num_packets_per_PE.begin(), num_packets_per_PE.end(), 0);
+
+					for (int i2 = i * num_local_vertices / times; i2 < (i+1) * num_local_vertices / times;i2++)
+					{
+						std::int64_t targetPE = s[i2] / num_local_vertices;
+						num_packets_per_PE[targetPE]++;
+					}
+					send_displacements[0]=0;
+					for (std::int32_t i = 1; i < mpi_size + 1; i++)
+						send_displacements[i] = send_displacements[i-1] + num_packets_per_PE[i-1];
+					std::fill(num_packets_per_PE.begin(), num_packets_per_PE.end(), 0);
+					std::vector<std::uint64_t> send(num_local_vertices / times);
+					for (int i2 = i * num_local_vertices / times; i2 < (i+1) * num_local_vertices / times;i2++)
+					{
+						std::int64_t targetPE = s[i2] / num_local_vertices;
+						std::int64_t packet_index = send_displacements[targetPE] + num_packets_per_PE[targetPE]++;
+						send[packet_index] = s[i2];
+					}
+		
+					auto recv = comm.alltoallv(kamping::send_buf(send), kamping::send_counts(num_packets_per_PE));
+				}
+				
+			}
+				
+			timer.finalize(comm, "test");
+			
+		}
+		else
+		{
+			
 			/*
 			std::vector<std::int32_t> num_packets_per_PE(mpi_size,1);
 			std::vector<std::uint64_t> send(mpi_size, 0);
