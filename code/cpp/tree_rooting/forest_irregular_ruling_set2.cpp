@@ -9,7 +9,7 @@ class forest_irregular_ruling_set2 //this is for forest
 	struct packet{
 		std::uint64_t ruler_source;
 		std::uint64_t destination;
-		std::uint32_t distance;
+		std::int64_t distance;
 		std::uint32_t ruler_source_PE;
 	};
 	
@@ -192,7 +192,7 @@ class forest_irregular_ruling_set2 //this is for forest
 		std::vector<std::uint64_t> mst(num_local_vertices);
 		std::vector<std::uint32_t> mst_PE(num_local_vertices,rank);
 		std::iota(mst.begin(),mst.end(),node_offset); 
-		std::vector<std::uint64_t> del(num_local_vertices,0);
+		std::vector<std::int64_t> del(num_local_vertices,0);
 	
 
 		
@@ -369,8 +369,7 @@ class forest_irregular_ruling_set2 //this is for forest
 			s_rec[i] = recv_answers[packet_index];
 			r_rec[i] = del[local_rulers[i]];
 			
-			if (r_rec[i] == 0)
-				s_rec[i] = i + prefix_sum_num_vertices_per_PE_rec[rank];
+			//if (r_rec[i] == 0) s_rec[i] = i + prefix_sum_num_vertices_per_PE_rec[rank];
 		}
 		
 		/*
@@ -383,7 +382,24 @@ class forest_irregular_ruling_set2 //this is for forest
 		std::vector<std::uint64_t> local_rulers_global_index = local_rulers;
 		for (std::uint32_t i = 0; i < local_rulers.size(); i++)
 			local_rulers_global_index[i] += node_offset;
-
+		/*
+		std::cout << "PE " << rank << " with rulers :";
+		for (int i = 0; i < local_rulers.size(); i++)
+			std::cout << local_rulers[i] + node_offset << " ";
+		std::cout << std::endl;
+		std::cout << "PE " << rank << " with s_rec :";
+		for (int i = 0; i < s_rec.size(); i++)
+			std::cout << s_rec[i] << " ";
+		std::cout << std::endl;
+		std::cout << "PE " << rank << " with r_rec :";
+		for (int i = 0; i < r_rec.size(); i++)
+			std::cout << r_rec[i] << " ";
+		std::cout << std::endl;
+		std::cout << "PE " << rank << " with targetPEs_rec :";
+		for (int i = 0; i < targetPEs_rec.size(); i++)
+			std::cout << targetPEs_rec[i] << " ";
+		std::cout << std::endl;*/
+		
 		forest_irregular_pointer_doubling recursion(s_rec, r_rec, targetPEs_rec, prefix_sum_num_vertices_per_PE_rec, comm, local_rulers_global_index);
 		std::fill(num_packets_per_PE.begin(), num_packets_per_PE.end(), 0);
 		timer.add_checkpoint("finalen_ranks_berechnen");
@@ -418,6 +434,8 @@ class forest_irregular_ruling_set2 //this is for forest
 		{	
 			answers[i].global_root_index = recursion.local_rulers[map_ruler_to_its_index[recv_request_buffer[i] - node_offset]];
 			answers[i].distance = recursion.r[map_ruler_to_its_index[recv_request_buffer[i] - node_offset]];
+			
+			//std::cout << "request " << recv_request_buffer[i] << " wird beantwortet mit " <<  answers[i].distance << std::endl;
 		}
 		timer.switch_category("communication");
 		auto recv_answers_buffer = comm.alltoallv(kamping::send_buf(answers), kamping::send_counts(recv_request.extract_recv_counts()))	.extract_recv_buffer();
@@ -436,6 +454,7 @@ class forest_irregular_ruling_set2 //this is for forest
 			result_root[i] = recv_answers_buffer[packet_index].global_root_index;
 			result_dist[i] = recv_answers_buffer[packet_index].distance + del[i];
 			
+			//std::cout << i + node_offset << " hat final rank " << recv_answers_buffer[packet_index].distance << "+" << del[i] << "=" << result_dist[i] << std::endl;
 		}
 	}
 	

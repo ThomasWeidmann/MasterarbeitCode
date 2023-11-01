@@ -24,7 +24,7 @@ class forest_regular_ruling_set2 //this is for trees
 	
 	public:
 	
-	forest_regular_ruling_set2(std::vector<std::uint64_t>& s, std::uint64_t comm_rounds, kamping::Communicator<>& comm)
+	forest_regular_ruling_set2(std::vector<std::uint64_t>& s, std::uint64_t comm_rounds, kamping::Communicator<>& comm, std::uint32_t num_iterations)
 	{
 		std::vector<std::string> categories = {"local_work", "communication", "other"};
 		timer timer("graph_umdrehen", categories, "local_work", "wood_regular_ruling_set2");
@@ -35,6 +35,7 @@ class forest_regular_ruling_set2 //this is for trees
 		rank = comm.rank();
 		num_local_vertices = s.size();
 		this->comm_rounds = comm_rounds;
+		this->num_iterations = num_iterations;
 		node_offset = rank * num_local_vertices;
 		//now turn around s array
 		
@@ -389,7 +390,7 @@ class forest_regular_ruling_set2 //this is for trees
 		std::vector<std::uint64_t> recursive_global_index ;
 		std::vector<std::int64_t> recursive_r;
 		
-		if (false)
+		if (num_iterations == 1)
 		{
 			forest_irregular_pointer_doubling recursion(s_rec, r_rec, targetPEs_rec, prefix_sum_num_vertices_per_PE, comm, local_rulers_global_index);
 		
@@ -465,7 +466,7 @@ class forest_regular_ruling_set2 //this is for trees
 			
 		}
 		
-		//timer.finalize(comm, "wood_regular_ruling_set2");
+		timer.finalize(comm, "wood_regular_ruling_set2");
 
 		
 	}
@@ -561,6 +562,7 @@ class forest_regular_ruling_set2 //this is for trees
 	std::vector<std::uint64_t> result_root;
 	
 	std::uint64_t comm_rounds;
+	std::uint32_t num_iterations;
 };
 
 

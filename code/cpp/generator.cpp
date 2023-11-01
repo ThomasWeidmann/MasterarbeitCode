@@ -33,12 +33,11 @@ class generator
 		
 		double prob = std::log(num_local_vertices) / ((double) num_local_vertices * mpi_size);
 		prob = prob > 1 ? 1 : prob;
-		prob = 30 / ((double) num_local_vertices * mpi_size);
-		prob = prob > 1 ? 1 : prob;
-		//GNM
 		//auto graph = gen.GenerateUndirectedGNP(num_local_vertices * mpi_size, prob, false);
-		auto graph = gen.GenerateUndirectedGNM(num_local_vertices * mpi_size, 20 * num_local_vertices * mpi_size, false);
 		
+		std::uint64_t m = 20 * num_local_vertices * mpi_size;
+		m = std::min((num_local_vertices * mpi_size - 1) * (num_local_vertices - 2),m);
+		auto graph = gen.GenerateUndirectedGNM(num_local_vertices * mpi_size, m, false);
 		//now every edge finds edge with lowest edge weight
 		std::vector<std::uint64_t> s(num_local_vertices); //s[i] will be the node j that minimizes c(i,j) with
 		std::iota(s.begin(), s.end(), node_offset);

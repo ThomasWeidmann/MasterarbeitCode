@@ -20,6 +20,8 @@ class forest_euler_tour
 	
 	std::vector<std::int64_t> start(kamping::Communicator<>& comm, std::vector<std::uint64_t>& s)
 	{
+
+		
 		std::vector<std::string> categories = {"local_work", "communication", "other"};
 		timer timer("graph umdrehen", categories, "local_work", "tree_euler_tour");
 		
@@ -90,7 +92,7 @@ class forest_euler_tour
 			std::uint64_t packet_index = bounds[target_node] + edges_per_node[target_node]++;
 			all_edges[packet_index] = recv[i].source;
 		}
-		
+
 		
 		timer.add_checkpoint("edge_weights");
 		all_edges_weights = std::vector<std::int64_t>(recv.size() + s.size(), -1);
@@ -272,10 +274,30 @@ class forest_euler_tour
 		timer.add_checkpoint("ruling_set");
 		timer.switch_category("other");
 
+		std::vector<std::int64_t> ranks;
+		if (true)
+		{
+			forest_irregular_ruling_set2 recursion(dist_rulers);
+			
+			std::vector<std::uint64_t> unnötig(s_edges.size());
+			
+			recursion.start(s_edges, all_edges_weights, targetPEs, prefix_sum_num_edges_per_PE, comm, unnötig);	
+			ranks =  recursion.result_dist;
+		}
+		else
+		{
+			irregular_pointer_doubling algorithm(s_edges, all_edges_weights, targetPEs, prefix_sum_num_edges_per_PE);
+			ranks = algorithm.start(comm);
+		}
 		
-		//irregular_pointer_doubling algorithm(s_edges,all_edges_weights,targetPEs,prefix_sum_num_edges_per_PE);
-		irregular_pointer_doubling algorithm(s_edges, all_edges_weights, targetPEs, prefix_sum_num_edges_per_PE);
-		std::vector<std::int64_t> ranks = algorithm.start(comm);
+	/*
+		std::cout << "PE " << rank << " with ranks arr: ";
+		for (int i = 0; i < ranks.size(); i++)
+			std::cout << ranks[i] << ",";
+		std::cout << std::endl;*/
+	
+		
+		
 		timer.switch_category("local_work");
 		
 		timer.add_checkpoint("final_ranks_berechnen");
@@ -291,7 +313,7 @@ class forest_euler_tour
 			std::cout << final_ranks[i] << ",";
 		std::cout << std::endl;*/
 		
-		//timer.finalize(comm, "euler_tour");
+		timer.finalize(comm, "euler_tour");
 		
 		return final_ranks;
 		
