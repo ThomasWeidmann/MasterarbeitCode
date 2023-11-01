@@ -1,6 +1,6 @@
 #pragma once
 
-class wood_irregular_pointer_doubling
+class forest_irregular_pointer_doubling
 {
 	struct node_request {
 		std::uint64_t node;
@@ -20,7 +20,7 @@ class wood_irregular_pointer_doubling
 	
 	public:
 	
-	wood_irregular_pointer_doubling(std::vector<std::uint64_t>& s, std::vector<std::int64_t>& r, std::vector<std::uint32_t>& targetPEs, std::vector<std::uint64_t>& prefix_sum_num_vertices_per_PE, kamping::Communicator<>& comm, std::vector<std::uint64_t>& local_rulers)
+	forest_irregular_pointer_doubling(std::vector<std::uint64_t>& s, std::vector<std::int64_t>& r, std::vector<std::uint32_t>& targetPEs, std::vector<std::uint64_t>& prefix_sum_num_vertices_per_PE, kamping::Communicator<>& comm, std::vector<std::uint64_t>& local_rulers)
 	{
 		rank = comm.rank();
 		size = comm.size();

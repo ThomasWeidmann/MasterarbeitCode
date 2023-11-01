@@ -41,7 +41,7 @@
 #include "grid_list_ranking/grid_regular_ruling_set2.cpp"
 
 
-#include "tree_rooting/wood_regular_ruling_set2.cpp"
+#include "tree_rooting/forest_regular_ruling_set2.cpp"
 
 #include "tree_rooting/tree_euler_tour.cpp"
 #include "tree_rooting/forest_euler_tour.cpp"
@@ -191,7 +191,7 @@ int main(int argc, char* argv[]) {
 			std::int32_t num_local_vertices = atoi(argv[2]);
 			std::vector<std::uint64_t> tree_vector = generator::generate_regular_wood_vector(num_local_vertices, comm);
 			std::int32_t dist_rulers = atoi(argv[3]);
-			std::vector<std::int64_t> d = wood_regular_ruling_set2(tree_vector, dist_rulers, comm).result_dist;
+			std::vector<std::int64_t> d = forest_regular_ruling_set2(tree_vector, dist_rulers, comm).result_dist;
 			
 			//analyze_instances::analyze_regular_instance(tree_vector, comm);
 			test::regular_test(comm, tree_vector, d);

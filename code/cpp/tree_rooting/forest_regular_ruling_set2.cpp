@@ -1,10 +1,10 @@
 #pragma once
 
-#include "wood_irregular_pointer_doubling.cpp"
+#include "forest_irregular_pointer_doubling.cpp"
 
 #include "forest_irregular_ruling_set2.cpp"
 
-class wood_regular_ruling_set2 //this is for trees
+class forest_regular_ruling_set2 //this is for trees
 {
 	struct packet{
 		std::uint64_t ruler_source;
@@ -24,7 +24,7 @@ class wood_regular_ruling_set2 //this is for trees
 	
 	public:
 	
-	wood_regular_ruling_set2(std::vector<std::uint64_t>& s, std::uint64_t comm_rounds, kamping::Communicator<>& comm)
+	forest_regular_ruling_set2(std::vector<std::uint64_t>& s, std::uint64_t comm_rounds, kamping::Communicator<>& comm)
 	{
 		std::vector<std::string> categories = {"local_work", "communication", "other"};
 		timer timer("graph_umdrehen", categories, "local_work", "wood_regular_ruling_set2");
@@ -391,7 +391,7 @@ class wood_regular_ruling_set2 //this is for trees
 		
 		if (false)
 		{
-			wood_irregular_pointer_doubling recursion(s_rec, r_rec, targetPEs_rec, prefix_sum_num_vertices_per_PE, comm, local_rulers_global_index);
+			forest_irregular_pointer_doubling recursion(s_rec, r_rec, targetPEs_rec, prefix_sum_num_vertices_per_PE, comm, local_rulers_global_index);
 		
 			recursive_global_index = recursion.local_rulers;
 			recursive_r = recursion.r;

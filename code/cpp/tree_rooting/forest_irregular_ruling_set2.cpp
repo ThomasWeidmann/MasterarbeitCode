@@ -1,6 +1,6 @@
 #pragma once
 
-#include "wood_irregular_pointer_doubling.cpp"
+#include "forest_irregular_pointer_doubling.cpp"
 
 
 //the idea of base of this code is the generalization of "ultimate parallel list ranking"
@@ -384,7 +384,7 @@ class forest_irregular_ruling_set2 //this is for forest
 		for (std::uint32_t i = 0; i < local_rulers.size(); i++)
 			local_rulers_global_index[i] += node_offset;
 
-		wood_irregular_pointer_doubling recursion(s_rec, r_rec, targetPEs_rec, prefix_sum_num_vertices_per_PE_rec, comm, local_rulers_global_index);
+		forest_irregular_pointer_doubling recursion(s_rec, r_rec, targetPEs_rec, prefix_sum_num_vertices_per_PE_rec, comm, local_rulers_global_index);
 		std::fill(num_packets_per_PE.begin(), num_packets_per_PE.end(), 0);
 		timer.add_checkpoint("finalen_ranks_berechnen");
 		timer.switch_category("local_work");
