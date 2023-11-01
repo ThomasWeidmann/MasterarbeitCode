@@ -100,7 +100,6 @@ class forest_load_balance_regular_ruling_set2
 	
 	
 	//hierbei werden die weight vectoren aufgeteilt und keine neuen vertices dazugemacht
-	//worst case O(p^2 + n/p) space and time
 	void start(std::vector<std::uint64_t>& s, kamping::Communicator<>& comm)
 	{
 		size = comm.size();
@@ -176,11 +175,12 @@ class forest_load_balance_regular_ruling_set2
 		}
 		
 		/*
+		if (rank == 0){
 		std::cout << rank << " with indegrees:";
-		for (int i = 0; i < num_local_vertices; i++)
+		for (int i = 0; i < 100; i++)
 			std::cout << indegrees[i] << " ";
-		std::cout << std::endl;*/
-		
+		std::cout << std::endl;
+		}
 		
 		/*
 		struct node_range {
@@ -318,10 +318,12 @@ class forest_load_balance_regular_ruling_set2
 		};
 		std::vector<cut_node> cut_nodes(0);
 		std::uint64_t dynamic_start_weight = prefix_sum_all_weights[rank];
-		std::uint64_t next_weight_cut = ((dynamic_start_weight + 2*num_local_vertices) / (2*num_local_vertices)) * (2*num_local_vertices) - 2*num_local_vertices;
+		std::int64_t next_weight_cut = ((dynamic_start_weight + 2*num_local_vertices) / (2*num_local_vertices)) * (2*num_local_vertices) - 2*num_local_vertices;
 		while (dynamic_start_weight < prefix_sum_all_weights[rank+1])
 		{			
 			next_weight_cut+= 2*num_local_vertices;
+			
+			if (rank == 0) std::cout << next_weight_cut << std::endl;
 			
 			nodes_to_PE_assignment& nodes_to_PE_assignment = nodes_to_PE_assignments.back();
 			nodes_to_PE_assignment.targetPE = (next_weight_cut - 1) / (2*num_local_vertices);
@@ -356,18 +358,20 @@ class forest_load_balance_regular_ruling_set2
 				}
 				else
 				{
-					nodes_to_PE_assignment.node_end_index = start_node - 1 + node_offset;
-					nodes_to_PE_assignment.end_part_node = start_node - 1 + node_offset;
-					nodes_to_PE_assignment.end_part_node_end_degree = dynamic_start_weight - next_weight_cut + 1;
-					nodes_to_PE_assignments.resize(nodes_to_PE_assignments.size() + 1);
-					nodes_to_PE_assignments.back().start_part_node = start_node - 1 + node_offset;
-					nodes_to_PE_assignments.back().start_part_node_start_degree = dynamic_start_weight - next_weight_cut + 1;
-					nodes_to_PE_assignments.back().node_start_index = start_node + node_offset;
+					std::uint64_t cut_node = start_node - 1 + node_offset;
+					std::uint64_t cut_degree = next_weight_cut - (dynamic_start_weight - indegrees[start_node-1]);
 					
+					nodes_to_PE_assignment.node_end_index = cut_node;
+					nodes_to_PE_assignment.end_part_node = start_node - 1 + node_offset;
+					nodes_to_PE_assignment.end_part_node_end_degree = cut_degree;
+					nodes_to_PE_assignments.resize(nodes_to_PE_assignments.size() + 1);
+					nodes_to_PE_assignments.back().start_part_node = cut_node;
+					nodes_to_PE_assignments.back().start_part_node_start_degree = cut_degree;
+					nodes_to_PE_assignments.back().node_start_index = start_node + node_offset;
 					
 					//iff there is is a cut between edges of the same node
 
-					cut_nodes.push_back({start_node - 1,  dynamic_start_weight - next_weight_cut + 1});
+					cut_nodes.push_back({cut_node - node_offset, cut_degree});
 					
 					start_node--;
 					dynamic_start_weight -= indegrees[start_node] +1;
@@ -400,11 +404,8 @@ class forest_load_balance_regular_ruling_set2
 		{
 			cut_node node = cut_nodes[i];
 
-		/* //this is just so i know how the variables are called....
-		std::vector<packet> recv_packets = recv.extract_recv_buffer();
-		std::vector<std::int32_t> recv_counts = recv.extract_recv_counts();*/
 
-
+			
 			if (node.cut_degree > 0)
 			{
 				std::uint64_t local_index = node.local_index;
@@ -417,7 +418,7 @@ class forest_load_balance_regular_ruling_set2
 						if (recv_packets[recv_displs[p]+i].node == local_index + node_offset)
 						{
 							current_degree += recv_packets[recv_displs[p]+i].indegree;
-							if (current_degree > node.cut_degree)
+							if (current_degree >= node.cut_degree)
 							{
 								std::cout << "cut node (" << node.local_index + node_offset << "," << node.cut_degree << ") has to be cut at PE " << p << " at " << current_degree - current_degree_from_PE_with_lower_index << "th index" <<  std::endl;
 								i = recv_counts[p];
@@ -425,7 +426,9 @@ class forest_load_balance_regular_ruling_set2
 							}
 						}
 					}
+					
 				}
+				
 				
 			}
 		}

@@ -3,6 +3,18 @@ class generator
 	public:
 	
 
+	static std::vector<std::uint64_t> generate_regular_star_vector(std::uint64_t num_local_vertices, kamping::Communicator<>& comm)
+	{
+		std::uint64_t mpi_rank = comm.rank();
+		std::uint64_t mpi_size = comm.size();
+		
+		std::vector<std::uint64_t> s(num_local_vertices,0);
+
+		return s;
+		
+		
+	}
+
 	static std::vector<std::uint64_t> generate_regular_tree_vector(std::uint64_t num_local_vertices, kamping::Communicator<>& comm)
 	{
 		std::uint64_t mpi_rank = comm.rank();
