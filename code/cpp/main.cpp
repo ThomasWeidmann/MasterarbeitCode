@@ -193,8 +193,8 @@ int main(int argc, char* argv[]) {
 			std::int32_t dist_rulers = atoi(argv[3]);
 			std::vector<std::int64_t> d = wood_regular_ruling_set2(tree_vector, dist_rulers, comm).result_dist;
 			
-			analyze_instances::analyze_regular_instance(tree_vector, comm);
-			//test::regular_test(comm, tree_vector, d);
+			//analyze_instances::analyze_regular_instance(tree_vector, comm);
+			test::regular_test(comm, tree_vector, d);
 		}
 		else if (euler_tour.compare(argv[1]) == 0)
 		{

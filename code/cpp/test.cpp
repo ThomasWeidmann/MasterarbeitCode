@@ -108,6 +108,7 @@ class test
 		
 	}
 	
+	
 	static void start_test(kamping::Communicator<>& comm)
 	{
 		if (comm.rank() == 0) std::cout << "##########################\n########## test ##########\n##########################\n\n";

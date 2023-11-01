@@ -1,3 +1,4 @@
+#pragma once
 
 class wood_irregular_pointer_doubling
 {
@@ -8,7 +9,7 @@ class wood_irregular_pointer_doubling
 
 	struct answer {
 		std::uint64_t node;
-		std::uint64_t r_of_mst;
+		std::int64_t r_of_mst;
 		std::uint64_t mst_of_mst;
 		std::uint32_t targetPE_of_mst;
 		std::int64_t passive_of_mst;
@@ -19,7 +20,7 @@ class wood_irregular_pointer_doubling
 	
 	public:
 	
-	wood_irregular_pointer_doubling(std::vector<std::uint64_t>& s, std::vector<std::uint64_t>& r, std::vector<std::uint32_t>& targetPEs, std::vector<std::uint64_t>& prefix_sum_num_vertices_per_PE, kamping::Communicator<>& comm, std::vector<std::uint64_t>& local_rulers)
+	wood_irregular_pointer_doubling(std::vector<std::uint64_t>& s, std::vector<std::int64_t>& r, std::vector<std::uint32_t>& targetPEs, std::vector<std::uint64_t>& prefix_sum_num_vertices_per_PE, kamping::Communicator<>& comm, std::vector<std::uint64_t>& local_rulers)
 	{
 		rank = comm.rank();
 		size = comm.size();
@@ -239,7 +240,7 @@ class wood_irregular_pointer_doubling
 	std::uint64_t rank, size;
 	std::vector<std::uint64_t> s;
 	std::vector<std::uint64_t> q;
-	std::vector<std::uint64_t> r;
+	std::vector<std::int64_t> r;
 	std::vector<std::uint32_t> targetPEs;
 	std::vector<std::uint64_t> prefix_sum_num_vertices_per_PE;
 	
