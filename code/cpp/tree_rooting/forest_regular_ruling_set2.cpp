@@ -466,7 +466,11 @@ class forest_regular_ruling_set2 //this is for trees
 			
 		}
 		
-		timer.finalize(comm, "wood_regular_ruling_set2");
+		std::string save_dir = "forest_regular_ruling_set2";
+		if (num_iterations == 2)
+			save_dir = "forest_regular_ruling_set2_rec";
+		timer.finalize(comm, save_dir);
+
 
 		
 	}
