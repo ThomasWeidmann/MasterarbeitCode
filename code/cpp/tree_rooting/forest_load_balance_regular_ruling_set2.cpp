@@ -63,8 +63,7 @@ class forest_load_balance_regular_ruling_set2
 		
 		
 	}
-	
-	
+
 	
 	//das hier ist erste unoptimierte implementierung
 	void start(std::vector<std::uint64_t>& s, kamping::Communicator<>& comm)
