@@ -52,6 +52,15 @@ class forest_load_balance_regular_ruling_set2
 			send_packets[packet_index].node = key;
 			send_packets[packet_index].indegree = value;
 		}
+		auto recv = comm.alltoallv(kamping::send_buf(send_packets), kamping::send_counts(num_packets_per_PE));
+		std::vector<packet> recv_packets = recv.extract_recv_buffer();
+		std::vector<std::uint64_t> indegrees(num_local_vertices,0);
+
+		for (int i = 0; i < recv_packets.size(); i++)
+		{
+			indegrees[recv_packets[i].node - node_offset] += recv_packets[i].indegree;
+		}
+		
 		
 	}
 	

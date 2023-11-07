@@ -14,6 +14,21 @@ class generator
 		
 		
 	}
+	
+	//we have num_local_vertices stars where on PE 0 every node is root of one star
+	static std::vector<std::uint64_t> generate_regular_stars_vector(std::uint64_t num_local_vertices, kamping::Communicator<>& comm)
+	{
+		std::uint64_t mpi_rank = comm.rank();
+		std::uint64_t mpi_size = comm.size();
+		
+		std::vector<std::uint64_t> s(num_local_vertices,0);
+		for (std::uint64_t i = 0; i < num_local_vertices; i++)
+			s[i] = i;
+
+		return s;
+		
+		
+	}
 
 	static std::vector<std::uint64_t> generate_regular_tree_vector(std::uint64_t num_local_vertices, kamping::Communicator<>& comm)
 	{
