@@ -15,6 +15,9 @@ class real_load_balance
 
 	void start(std::vector<std::uint64_t>& s, kamping::Communicator<>& comm, karam::mpi::GridCommunicator grid_comm)
 	{
+		std::vector<std::string> categories = {"calc, other"};
+		timer timer("indegrees", categories, "calc", "grid_indegrees_test");
+		
 		size = comm.size();
 		rank = comm.rank();
 		num_local_vertices = s.size();
@@ -63,7 +66,7 @@ class real_load_balance
 			indegrees[recv_packets[i].node - node_offset] += recv_packets[i].indegree;
 		}*/
 		
-		
+		timer.finalize(comm, "grid_indegrees_test");
 	}
 	
 

@@ -225,7 +225,7 @@ int main(int argc, char* argv[]) {
 			std::int32_t dist_rulers = atoi(argv[3]);
 			std::vector<std::uint64_t> s = generator::generate_regular_stars_vector(num_local_vertices, comm);
 
-			//forest_load_balance_regular_ruling_set2(dist_rulers).start2(s,comm);
+			forest_load_balance_regular_ruling_set2(dist_rulers).start2(s,comm);
 			real_load_balance(dist_rulers).start(s,comm, grid_comm);
 		}
 		else if (forest_rooting_euler.compare(argv[1]) == 0)

@@ -13,6 +13,10 @@ class forest_load_balance_regular_ruling_set2
 	//diese Methode ist nachprogrammierung von start mit mehr effizienz und mehr objektorientierung
 	void start2(std::vector<std::uint64_t>& s, kamping::Communicator<>& comm)
 	{
+		
+		std::vector<std::string> categories = {"calc, other"};
+		timer timer("indegrees", categories, "calc", "all_indegrees_test");
+		
 		size = comm.size();
 		rank = comm.rank();
 		num_local_vertices = s.size();
@@ -61,7 +65,7 @@ class forest_load_balance_regular_ruling_set2
 			indegrees[recv_packets[i].node - node_offset] += recv_packets[i].indegree;
 		}
 		
-		
+		timer.finalize(comm, "all_indegrees_test");
 	}
 
 	
