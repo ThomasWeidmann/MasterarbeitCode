@@ -1,9 +1,6 @@
 class real_load_balance 
 {
-	struct packet {
-			std::uint64_t node;
-			std::uint64_t indegree;
-	};
+	
 	
 	public:
 	
@@ -23,7 +20,75 @@ class real_load_balance
 		num_local_vertices = s.size();
 		node_offset = rank * num_local_vertices;
 		
-		std::vector<std::int32_t> num_packets_per_PE(size,0);
+		
+		std::vector<std::uint64_t> indegrees = calculate_indegrees(s, comm, grid_comm);
+		
+		for (int i = 0; i < 10; i++)
+			std::cout << i + node_offset << " with indegree " << indegrees[i] << std::endl;
+		
+		calculate_weight_cuts(indegrees, comm);
+		
+		timer.finalize(comm, "grid_indegrees_test");
+	}
+	
+	void calculate_weight_cuts(std::vector<std::uint64_t>& indegrees, kamping::Communicator<>& comm)
+	{
+		std::uint64_t weight = num_local_vertices; //because every node has weight 1, the additional 1 for every edge in counted in the loop below
+		for (std::uint64_t i = 0; i < num_local_vertices; i++)
+			weight += indegrees[i];
+		
+		std::vector<std::uint64_t> all_weights;
+		comm.allgather(kamping::send_buf(weight), kamping::recv_buf<kamping::resize_to_fit>(all_weights));
+
+		std::vector<std::uint64_t> prefix_sum_all_weights(size+1,0);
+		for (std::uint32_t i = 1; i < size + 1; i++)
+		{
+			prefix_sum_all_weights[i] = prefix_sum_all_weights[i-1] + all_weights[i-1];
+		}
+		
+		
+		//end_degree means only the first #end_degree
+		//start_degree means not the first #start_degree
+		struct start_part_node {
+			std::uint64_t node;
+			std::uint64_t end_degree;
+			std::uint32_t targetPE;
+		};
+		struct middle_part_node {
+			std::uint64_t node;
+			std::uint64_t start_degree;
+			std::uint64_t end_degree;
+			std::uint32_t targetPE;
+		};
+		struct end_part_node {
+			std::uint64_t node;
+			std::uint64_t start_degree;
+			std::uint32_t targetPE;
+		};
+		
+		std::vector<start_part_node> start_part_nodes(0);
+		std::vector<middle_part_node> middle_part_nodes(0);
+		std::vector<end_part_node> end_part_nodes(0);
+
+		std::uint64_t dynamic_start_weight = prefix_sum_all_weights[rank];
+		std::int64_t next_weight_cut = ((dynamic_start_weight + 2*num_local_vertices) / (2*num_local_vertices)) * (2*num_local_vertices) - 2*num_local_vertices;
+		std::uint64_t dynamic_start_node = 0;
+		while (dynamic_start_weight < prefix_sum_all_weights[rank+1])
+		{			
+			next_weight_cut+= 2*num_local_vertices;
+			
+			std::uint32_t targetPE = (next_weight_cut - 1) / (2*num_local_vertices);
+		}
+	}
+	
+	std::vector<std::uint64_t> calculate_indegrees(std::vector<std::uint64_t>& s, kamping::Communicator<>& comm, karam::mpi::GridCommunicator grid_comm)
+	{
+		struct packet {
+			std::uint64_t node;
+			std::uint64_t indegree;
+		};
+		
+		std::vector<std::int32_t> send_counts(size,0);
 		std::vector<std::int32_t> send_displacements(size + 1,0);
 		
 		std::unordered_map<std::uint64_t, std::uint64_t> local_node_indegrees;
@@ -41,41 +106,20 @@ class real_load_balance
 		for (const auto& [key, value] : local_node_indegrees)
 		{
 			std::int32_t targetPE = key / num_local_vertices;
-			num_packets_per_PE[targetPE]++;
+			send_counts[targetPE]++;
 		}
 		
-		calculate_send_displacements_and_reset_num_packets_per_PE(send_displacements, num_packets_per_PE);
+		calculate_send_displacements_and_reset_num_packets_per_PE(send_displacements, send_counts);
 		
-		std::vector<packet> send_packets(send_displacements[size]);
+		std::vector<packet> send_buf(send_displacements[size]);
 		for (const auto& [key, value] : local_node_indegrees)
 		{
 			std::int32_t targetPE = key / num_local_vertices;
-			std::int64_t packet_index = send_displacements[targetPE] + num_packets_per_PE[targetPE]++;
-			send_packets[packet_index].node = key;
-			send_packets[packet_index].indegree = value;
+			std::int64_t packet_index = send_displacements[targetPE] + send_counts[targetPE]++;
+			send_buf[packet_index].node = key;
+			send_buf[packet_index].indegree = value;
 		}
-		
-		grid_mpi_all_to_all_compress(send_packets, num_packets_per_PE, grid_comm, comm);
-		/*
-		auto recv = comm.alltoallv(kamping::send_buf(send_packets), kamping::send_counts(num_packets_per_PE));
-		std::vector<packet> recv_packets = recv.extract_recv_buffer();
-		std::vector<std::uint64_t> indegrees(num_local_vertices,0);
 
-		for (int i = 0; i < recv_packets.size(); i++)
-		{
-			indegrees[recv_packets[i].node - node_offset] += recv_packets[i].indegree;
-		}*/
-		
-		timer.finalize(comm, "grid_indegrees_test");
-	}
-	
-
-	void grid_mpi_all_to_all_compress(
-	std::vector<packet>       send_buf,
-	std::vector<std::int32_t>    send_counts,
-	karam::mpi::GridCommunicator const& grid_comm,
-	kamping::Communicator<>& comm) 
-	{
 		std::vector<std::int32_t> send_counts_row = std::vector<std::int32_t>(grid_comm.row_comm().size(),0);
 		for (std::int32_t p = 0; p < comm.size(); p++)
 		{
@@ -83,9 +127,9 @@ class real_load_balance
 			send_counts_row[targetPE] += send_counts[p];
 		}
 		
-		auto send_displacements = send_counts_row;
-		std::exclusive_scan(send_counts_row.begin(), send_counts_row.end(), send_displacements.begin(), 0ull);
-		auto       index_displacements = send_displacements;
+		auto send_displacements3 = send_counts_row;
+		std::exclusive_scan(send_counts_row.begin(), send_counts_row.end(), send_displacements3.begin(), 0ull);
+		auto       index_displacements = send_displacements3;
 		
 		karam::utils::default_init_vector<karam::mpi::IndirectMessage<packet>> contiguous_send_buf(send_buf.size()); 
 		
@@ -116,7 +160,7 @@ class real_load_balance
 		
 		auto rowwise_recv_buf    = mpi_result_rowwise.extract_recv_buffer();
 		
-		std::unordered_map<std::uint64_t, std::uint64_t> local_node_indegrees;
+		local_node_indegrees = std::unordered_map<std::uint64_t, std::uint64_t>();
 		std::unordered_map<std::uint64_t, std::uint32_t> node_targetPE;
 		
 		for (std::uint64_t i = 0; i < rowwise_recv_buf.size(); i++)
@@ -167,7 +211,13 @@ class real_load_balance
 				local_node_indegrees[recv[i].payload().node] = recv[i].payload().indegree;
 		}
 		
+		std::vector<std::uint64_t> indegrees(num_local_vertices,0);
 		
+		for (const auto& [key, value] : local_node_indegrees)
+		{
+			indegrees[key - node_offset] = value;
+		}
+		return indegrees;
 	}
 
 	
