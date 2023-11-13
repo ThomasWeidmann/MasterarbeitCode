@@ -29,11 +29,19 @@ class irregular_pointer_doubling
 	
 	std::vector<std::int64_t> start(kamping::Communicator<>& comm)
 	{
+		
+		
+		
 		rank = comm.rank();
 		size = comm.size();
 		num_local_vertices = s.size();
 		num_global_vertices = prefix_sum_num_vertices_per_PE[size];
 		node_offset = prefix_sum_num_vertices_per_PE[rank];
+		
+		std::vector<std::string> categories = {"local_work", "communication"};
+		timer timer("start", categories, "local_work", "irregular_pointer_doubling");
+		
+		timer.add_info(std::string("num_local_vertices"), std::to_string(num_local_vertices), true);
 		
 		std::vector<std::uint64_t> q = s;
 		std::vector<bool> passive(num_local_vertices, false);
@@ -58,7 +66,6 @@ class irregular_pointer_doubling
 		
 		for (std::int32_t iteration = 0; iteration < max_iteration; iteration++)
 		{
-			
 			
 			
 
@@ -122,9 +129,9 @@ class irregular_pointer_doubling
 				r[local_index] = r[local_index] + recv_answers[i].r_of_mst;
 				passive[local_index] = recv_answers[i].passive_of_mst;
 			}
-			
 		}
-		
+		//timer.finalize(comm, "irregular_pointer_doubling");
+
 		return r;
 		
 	}
