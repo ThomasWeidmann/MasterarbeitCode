@@ -150,7 +150,8 @@ class shuffle_load_balance
 		
 		//regular_pointer_doubling algorithm(s_shuffle, comm);
 		//std::vector<std::int64_t> ranks = algorithm.start(comm, grid_comm);
-		std::vector<std::int64_t> ranks =forest_regular_ruling_set2(s_shuffle, comm_rounds, comm,1).result_dist;
+		//std::vector<std::int64_t> ranks =forest_regular_ruling_set2(s_shuffle, comm_rounds, comm,1).result_dist;
+		std::vector<std::int64_t> ranks = tree_euler_tour(comm, s_shuffle, comm_rounds).start(comm, s_shuffle);
 		struct result {
 			std::uint64_t node;
 			std::int64_t rank;

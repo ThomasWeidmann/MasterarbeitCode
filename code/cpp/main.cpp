@@ -26,6 +26,7 @@
 #include "generator.cpp"
 #include "test.cpp"
 #include "interfaces.cpp"
+#include "local_contraction.cpp"
 
 #include "grid_all_to_all.cpp"
 #include "helper_functions.cpp"
@@ -92,6 +93,7 @@ int main(int argc, char* argv[]) {
 	std::string grid_test = "grid_test";
 	std::string grid_ruling_set2 = "grid_ruling_set2";
 	std::string grid_ruling_set2_rec = "grid_ruling_set2_rec";
+	std::string local_contract = "local_contract";
 	
 	if (argc < 2)
 	{
@@ -232,6 +234,17 @@ int main(int argc, char* argv[]) {
 			test::regular_test(comm, s, d);
 
 			//analyze_instances::analyze_regular_instance(s, comm);
+		}
+		else if (local_contract.compare(argv[1]) == 0)
+		{
+			std::uint64_t num_local_vertices = atoi(argv[2]);
+			std::int32_t dist_rulers = atoi(argv[3]);
+			std::vector<std::uint64_t> s = generator::generate_regular_successor_vector(num_local_vertices, comm);
+			local_contraction algorithm;
+			algorithm.start(comm, s);
+			
+
+			
 		}
 		else if (forest_rooting_euler.compare(argv[1]) == 0)
 		{

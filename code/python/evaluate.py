@@ -132,23 +132,22 @@ def generate_work_communication_graph(path, algorithm_name, extra_info):
     plt.savefig(work_communication_dir + "work_and_communication_of_" + algorithm_name + ".pdf")
     plt.clf() 
     
-path1 = 'regular_ruling_set2.txt'
-path2 = 'regular_ruling_set2_rec.txt'
-path3 = 'grid_regular_ruling_set2.txt'
-path4 = 'grid_regular_ruling_set2_rec.txt'
+path1 = 'euler_tour.txt'
+path2 = 'forest_regular_ruling_set2.txt'
+path3 = 'forest_regular_ruling_set2_rec.txt'
 
-paths = [path1, path2, path3, path4]
+paths = [path1, path2, path3]
 
 
 names = [path[:-4] for path in paths] 
 
-save_dir = '../../other/supermuc_auswertung2/experiments3/grid/'
+save_dir = '../../other/supermuc_auswertung2/experiments4/lb_tree/'
 paths = [save_dir + path for path in paths]
 
-extra_info = "input=random_list with 1.000.000 per PE"
+extra_info = "input=tree with 1.000.000 per PE"
 ##########WICHTIG########################
-#for path in paths:
-    #to_json(path)
+for path in paths:
+    to_json(path)
 
 for i in range(len(paths)):
     generate_time_step_graph(paths[i], names[i], extra_info)
