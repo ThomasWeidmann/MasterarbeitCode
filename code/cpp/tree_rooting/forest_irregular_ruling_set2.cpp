@@ -400,7 +400,7 @@ class forest_irregular_ruling_set2 //this is for forest
 		for (int i = 0; i < targetPEs_rec.size(); i++)
 			std::cout << targetPEs_rec[i] << " ";
 		std::cout << std::endl;*/
-		
+						
 		forest_irregular_pointer_doubling recursion(s_rec, r_rec, targetPEs_rec, prefix_sum_num_vertices_per_PE_rec, comm, local_rulers_global_index);
 		std::fill(num_packets_per_PE.begin(), num_packets_per_PE.end(), 0);
 		timer.add_checkpoint("finalen_ranks_berechnen");

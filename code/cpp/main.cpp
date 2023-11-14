@@ -49,6 +49,7 @@
 
 
 #include "tree_rooting/real_load_balance.cpp"
+#include "tree_rooting/shuffle_load_balance.cpp"
 
 int mpi_rank, mpi_size;
 
@@ -226,7 +227,10 @@ int main(int argc, char* argv[]) {
 			std::vector<std::uint64_t> s = generator::generate_regular_tree_vector(num_local_vertices, comm);
 
 			//forest_load_balance_regular_ruling_set2(dist_rulers).start2(s,comm);
-			real_load_balance(dist_rulers).start(s,comm, grid_comm);
+			//real_load_balance(dist_rulers).start(s,comm, grid_comm);
+			std::vector<std::int64_t> d = shuffle_load_balance().start(s,comm, grid_comm, dist_rulers);
+			test::regular_test(comm, s, d);
+
 			//analyze_instances::analyze_regular_instance(s, comm);
 		}
 		else if (forest_rooting_euler.compare(argv[1]) == 0)
