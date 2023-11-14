@@ -597,9 +597,14 @@ class real_load_balance
 		
 		timer.add_checkpoint("rekursion");
 
-		irregular_pointer_doubling algorithm(lb_s, lb_r, lb_targetPEs, lb_prefix_sum_num_local_vertices_per_PE);
-		std::vector<std::int64_t> ranks = algorithm.start(comm);
-
+		//irregular_pointer_doubling algorithm(lb_s, lb_r, lb_targetPEs, lb_prefix_sum_num_local_vertices_per_PE);
+		//std::vector<std::int64_t> ranks = algorithm.start(comm);
+		std::vector<std::uint64_t> unnötig(lb_num_local_vertices);
+		
+		forest_irregular_ruling_set2 recursion(comm_rounds);
+		recursion.start(lb_s, lb_r, lb_targetPEs, lb_prefix_sum_num_local_vertices_per_PE, comm, unnötig);
+			
+		std::vector<std::int64_t> ranks = recursion.result_dist;
 		timer.add_checkpoint("final_ranks");
 
 		struct result {

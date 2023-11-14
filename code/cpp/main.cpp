@@ -193,7 +193,7 @@ int main(int argc, char* argv[]) {
 		else if (tree_rooting.compare(argv[1]) == 0)
 		{
 			std::int32_t num_local_vertices = atoi(argv[2]);
-			std::vector<std::uint64_t> tree_vector = generator::generate_regular_wood_vector(num_local_vertices, comm);
+			std::vector<std::uint64_t> tree_vector = generator::generate_regular_successor_vector(num_local_vertices, comm);
 			std::int32_t dist_rulers = atoi(argv[3]);
 			std::vector<std::int64_t> d = forest_regular_ruling_set2(tree_vector, dist_rulers, comm,1).result_dist;
 			
@@ -227,6 +227,7 @@ int main(int argc, char* argv[]) {
 
 			//forest_load_balance_regular_ruling_set2(dist_rulers).start2(s,comm);
 			real_load_balance(dist_rulers).start(s,comm, grid_comm);
+			//analyze_instances::analyze_regular_instance(s, comm);
 		}
 		else if (forest_rooting_euler.compare(argv[1]) == 0)
 		{
