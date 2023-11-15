@@ -131,7 +131,7 @@ class generator
 		kagen::KaGen gen(MPI_COMM_WORLD);
 		std::vector<std::uint64_t> s(num_local_vertices);
 		std::uint64_t num_global_vertices = comm.size() * num_local_vertices;
-		auto path = gen.GenerateDirectedPath(num_global_vertices, true); //true means the values are shuffled
+		auto path = gen.GenerateDirectedPath(num_global_vertices, false); //true means the values are shuffled
 		
 		for (std::uint64_t i = 0; i < num_local_vertices; i++)
 			s[i] = i + comm.rank() * num_local_vertices;

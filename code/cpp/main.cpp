@@ -27,6 +27,7 @@
 #include "test.cpp"
 #include "interfaces.cpp"
 #include "local_contraction.cpp"
+#include "forest_local_contraction.cpp"
 
 #include "grid_all_to_all.cpp"
 #include "helper_functions.cpp"
@@ -239,8 +240,8 @@ int main(int argc, char* argv[]) {
 		{
 			std::uint64_t num_local_vertices = atoi(argv[2]);
 			std::int32_t dist_rulers = atoi(argv[3]);
-			std::vector<std::uint64_t> s = generator::generate_regular_successor_vector(num_local_vertices, comm);
-			local_contraction algorithm;
+			std::vector<std::uint64_t> s = generator::generate_regular_wood_vector(num_local_vertices, comm);
+			forest_local_contraction algorithm;
 			std::vector<std::int64_t> d = algorithm.start(comm, s);
 			
 			test::regular_test(comm, s, d);
