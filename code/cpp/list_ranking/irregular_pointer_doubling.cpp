@@ -1,3 +1,4 @@
+#pragma once
 
 class irregular_pointer_doubling
 {

@@ -241,9 +241,9 @@ int main(int argc, char* argv[]) {
 			std::int32_t dist_rulers = atoi(argv[3]);
 			std::vector<std::uint64_t> s = generator::generate_regular_successor_vector(num_local_vertices, comm);
 			local_contraction algorithm;
-			algorithm.start(comm, s);
+			std::vector<std::int64_t> d = algorithm.start(comm, s);
 			
-
+			test::regular_test(comm, s, d);
 			
 		}
 		else if (forest_rooting_euler.compare(argv[1]) == 0)
