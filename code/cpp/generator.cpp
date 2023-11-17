@@ -54,7 +54,7 @@ class generator
 		std::uint64_t mpi_rank = comm.rank();
 		std::uint64_t mpi_size = comm.size();
 		
-		std::int32_t max_edge_weight = 150; 
+		std::int32_t max_edge_weight = 1; 
 		std::uint64_t node_offset = mpi_rank * num_local_vertices;
 		kagen::KaGen gen(MPI_COMM_WORLD);
 		

@@ -28,6 +28,8 @@
 #include "interfaces.cpp"
 #include "local_contraction.cpp"
 #include "forest_local_contraction.cpp"
+#include "forest_local_contraction2.cpp"
+
 
 #include "grid_all_to_all.cpp"
 #include "helper_functions.cpp"
@@ -179,7 +181,7 @@ int main(int argc, char* argv[]) {
 		{
 			std::uint64_t num_local_vertices = atoi(argv[2]);
 
-			std::vector<std::uint64_t> s = generator::generate_regular_wood_vector(num_local_vertices, comm);
+			std::vector<std::uint64_t> s = generator::generate_regular_successor_vector(num_local_vertices, comm);
 			regular_pointer_doubling algorithm(s, comm);
 			
 			std::vector<std::int64_t> d = algorithm.start(comm, grid_comm);
@@ -241,10 +243,17 @@ int main(int argc, char* argv[]) {
 			std::uint64_t num_local_vertices = atoi(argv[2]);
 			std::int32_t dist_rulers = atoi(argv[3]);
 			std::vector<std::uint64_t> s = generator::generate_regular_wood_vector(num_local_vertices, comm);
-			forest_local_contraction algorithm;
+			forest_local_contraction2 algorithm;
 			std::vector<std::int64_t> d = algorithm.start(comm, s);
 			
 			test::regular_test(comm, s, d);
+			/*
+			kagen::KaGen gen(MPI_COMM_WORLD);
+			//rgg, rmat(a=0.59,b=0.19,c=0.19, d=1-(a+b+c)) aus graph500 challenge
+			kagen::Graph graph = gen.GenerateGrid2D_N(4, 1, false);
+			for (auto const& [src, dst]: graph.edges)
+				std::cout << "(" << src << "," << dst << ")" << std::endl;*/
+		
 			
 		}
 		else if (forest_rooting_euler.compare(argv[1]) == 0)

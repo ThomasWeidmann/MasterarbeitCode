@@ -111,7 +111,7 @@ class timer
 			info_string += info_values[i] + ",";
 		std::vector<char> data(info_string.begin(), info_string.end());
 		std::vector<char> recv_data;
-		comm.gather(kamping::send_buf(data), kamping::recv_buf<kamping::resize_to_fit>(recv_data), kamping::root(0));
+		comm.gatherv(kamping::send_buf(data), kamping::recv_buf<kamping::resize_to_fit>(recv_data), kamping::root(0));
 	
 		if (comm.rank() == 0)
 		{
