@@ -118,6 +118,15 @@ int main(int argc, char* argv[]) {
 			regular_ruling_set algorithm = regular_ruling_set(s, dist_rulers, 1);
 			std::vector<std::int64_t> d = algorithm.start(comm, s, grid_comm);
 			test::regular_test(comm, s, d);
+			
+			double n = num_local_vertices * mpi_size;
+			double dist = dist_rulers;
+			double exact = std::log(1 / n) / std::log((dist - 1)/dist);
+			double approx = dist * std::log(n);
+			if (mpi_rank == 0) std::cout << "exact = " << exact << std::endl;
+			if (mpi_rank == 0) std::cout << "approx = " << approx << std::endl;
+
+			
 		}
 		else if (ruling_set_rec.compare(argv[1]) == 0)
 		{

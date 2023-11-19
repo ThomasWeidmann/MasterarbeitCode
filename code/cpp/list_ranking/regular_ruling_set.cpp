@@ -103,7 +103,7 @@ class regular_ruling_set
 		std::vector<std::int64_t> del(num_local_vertices, -1); //dist to previous ruler
 		
 		std::int64_t num_reached_nodes = 0;
-		bool more_nodes_reached = false;
+		bool more_nodes_reached = true;
 		
 		timer.add_checkpoint("pakete_verfolgen");
 
@@ -111,12 +111,23 @@ class regular_ruling_set
 		std::int64_t iteration=0;
 		
 
-		while (iteration++ < max_iteration  || any_PE_has_work(comm, more_nodes_reached))
+		//while (iteration++ < max_iteration  || any_PE_has_work(comm, more_nodes_reached))
+		while (iteration++ < 0  || any_PE_has_work(comm, more_nodes_reached))
 		{
 			//if (rank ==  0) std::cout << "iteration " << iteration << " mit " << num_local_vertices - num_reached_nodes << std::endl;
 			
 			//timer.add_checkpoint("iteration " + std::to_string(iteration));
-
+			
+			if (iteration == ((int) (distance_rulers * std::log(distance_rulers))))
+			{
+				std::vector<int> recv_left;
+				int left = num_local_vertices - num_reached_nodes;
+				comm.allgather(kamping::send_buf(left), kamping::recv_buf<kamping::resize_to_fit>(recv_left));
+				int sum = 0;
+				for (int p = 0; p < size; p++)
+					sum += recv_left[p];
+				if (rank == 0) std::cout << sum << " sollte gleich sein mit " << num_local_vertices * size / distance_rulers << std::endl;
+			}
 			
 			std::fill(num_packets_per_PE.begin(), num_packets_per_PE.end(), 0);
 			more_nodes_reached = false;
@@ -168,7 +179,11 @@ class regular_ruling_set
 			
 
 		}
+		
+		if (rank == 0) std::cout << "num_iterations = " << iteration << std::endl;
+		
 		timer.add_checkpoint("rekursion_vorbereiten");
+
 
 		
 		//wir müssen noch anfangsknoten zählen und dann die gesamtzahl als rank des final rulers setzten
