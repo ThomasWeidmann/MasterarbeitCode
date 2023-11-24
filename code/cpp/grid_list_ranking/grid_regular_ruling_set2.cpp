@@ -258,6 +258,12 @@ class grid_regular_ruling_set2
 		}
 		timer.switch_category("communication");
 		std::vector<std::uint64_t> recv_answers = comm.alltoallv(kamping::send_buf(recv_requests), kamping::send_counts(recv.extract_recv_counts())).extract_recv_buffer();
+		//###############
+		std::function<std::uint64_t(const std::uint64_t)> lambda = [&] (std::uint64_t request) { return map_ruler_to_its_index[request-node_offset] + prefix_sum_num_vertices_per_PE[rank];};
+		my_communicator my_communicator;
+		std::vector<std::uint64_t> recv_answers2 = my_communicator.request_reply(requests, num_packets_per_PE, lambda, comm, grid_comm);
+		recv_answers = recv_answers2;
+		//##############
 		timer.switch_category("local_work");
 		std::fill(num_packets_per_PE.begin(), num_packets_per_PE.end(), 0);
 		for (std::uint64_t i = 0; i < local_rulers.size(); i++)

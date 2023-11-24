@@ -35,6 +35,7 @@
 #include "helper_functions.cpp"
 #include "analyze_instances.cpp"
 
+#include "communicator.cpp"
 //#include "karam/mpi/grid_alltoall.hpp"
 
 #include "list_ranking/regular_ruling_set.cpp"
@@ -114,17 +115,20 @@ int main(int argc, char* argv[]) {
 			std::int64_t num_local_vertices = atoi(argv[2]);
 
 			std::int64_t dist_rulers = atoi(argv[3]);
+			
+			double n = num_local_vertices * mpi_size;
+			double dist = dist_rulers;
+			double exact = std::log(0.5 / n) / std::log((dist - 1)/dist);
+			double approx = dist * std::log(2*n);
+			if (mpi_rank == 0) std::cout << "exact = " << exact << std::endl;
+			if (mpi_rank == 0) std::cout << "approx = " << approx << std::endl;
+			
 			std::vector<std::uint64_t> s = generator::generate_regular_successor_vector(num_local_vertices, comm);
 			regular_ruling_set algorithm = regular_ruling_set(s, dist_rulers, 1);
 			std::vector<std::int64_t> d = algorithm.start(comm, s, grid_comm);
 			test::regular_test(comm, s, d);
 			
-			double n = num_local_vertices * mpi_size;
-			double dist = dist_rulers;
-			double exact = std::log(1 / n) / std::log((dist - 1)/dist);
-			double approx = dist * std::log(n);
-			if (mpi_rank == 0) std::cout << "exact = " << exact << std::endl;
-			if (mpi_rank == 0) std::cout << "approx = " << approx << std::endl;
+			
 
 			
 		}
@@ -345,55 +349,8 @@ int main(int argc, char* argv[]) {
 		}
 		else
 		{
-			std::vector<int> send(mpi_size);
-			std::iota(send.begin(), send.end(), 0);
-			auto get_destination = [](const std::uint64_t& e) {
-				return e;
-			};
-	
-			std::vector<std::int32_t> send_counts(mpi_size,1);
-			
-			//std::vector<karam::mpi::IndirectMessage<int>> result2 = grid_mpi_all_to_all(send, get_destination, grid_comm).extract_recv_buffer();
-			
-			auto result = my_grid_all_to_all(send, send_counts, grid_comm,comm).extract_recv_buffer();
-			
-			
-			std::cout << mpi_rank << " with:";
-			for (int i = 0; i < result.size(); i++)
-				std::cout << result[i] << " ";
-			std::cout << std::endl;
-			/*
-			std::vector<std::int32_t> num_packets_per_PE(mpi_size,1);
-			std::vector<std::uint64_t> send(mpi_size, 0);
-			std::iota(send.begin(), send.end(), 0);
-			karam::mpi::GridCommunicator grid_comm;
-			std::vector<std::int32_t> recv = grid_alltoall(num_packets_per_PE, send, comm, grid_comm).extract_recv_counts();
-			
-			std::cout << "PE " << comm.rank() << " with:";
-			for (int i = 0; i < recv.size(); i++)
-				std::cout << recv[i] << ",";
-			std::cout << std::endl;*/
-			
-			
-			
-			/*
-			karam::mpi::GridCommunicator grid_comm;
-
-			
-			std::vector<std::uint64_t> send(mpi_size, 0);
-			std::iota(send.begin(), send.end(), 0);
-
-			std::vector<int> input = {1,2,3};
-			auto get_destination = [](const std::uint64_t& e) {
-				return e;
-			};
-
-			auto result = grid_mpi_all_to_all(send, get_destination, grid_comm).extract_recv_buffer();
-			std::cout << "PE " << mpi_rank << " with "<< result.size() << std::endl;
-			for (int i = 0; i < result.size(); i++)
-				std::cout << result[i].payload() << ",";
-			std::cout << std::endl;
-			*/
+			my_communicator my_communicator;
+			my_communicator.test(comm, grid_comm);
 			//error(std::string(argv[1]) + " is not a name of an algorithm or wrong parameters");
 		}
 	}

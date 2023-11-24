@@ -38,7 +38,7 @@ class grid_irregular_ruling_set2
 		std::vector<packet> out_buffer(out_buffer_size);
 		
 		std::vector<std::string> categories = {"local_work", "communication"};
-		timer timer("ruler_pakete_senden", categories, "local_work", "irregular_ruling_set2");
+		timer timer("ruler_pakete_senden", categories, "local_work", "grid_irregular_ruling_set2");
 		
 		timer.add_info(std::string("dist_rulers"), std::to_string(dist_rulers));
 		timer.add_info(std::string("num_local_vertices"), std::to_string(num_local_vertices), true);
@@ -227,29 +227,14 @@ class grid_irregular_ruling_set2
 		std::vector<std::int64_t> r_rec(local_rulers.size());
 		std::vector<std::uint32_t> targetPEs_rec(local_rulers.size());
 	
+		//########################################################################################################
 		
 		std::vector<std::uint64_t> requests(local_rulers.size());
 		std::fill(num_packets_per_PE.begin(), num_packets_per_PE.end(), 0);
 		for (std::uint64_t i = 0; i < local_rulers.size(); i++)
 		{
 			map_ruler_to_its_index[local_rulers[i]] = i;
-			/*
-			std::uint64_t target_node = mst[local_rulers[i]];
 			
-			
-			std::uint64_t lower_bound_targetPE = 0;
-			std::uint64_t upper_bound_targetPE = size;
-			
-			while (upper_bound_targetPE - lower_bound_targetPE > 1)
-			{
-				std::uint64_t middle = (lower_bound_targetPE + upper_bound_targetPE) / 2;
-				if (target_node < prefix_sum_num_vertices_per_PE[middle])
-					upper_bound_targetPE = middle;
-				else
-					lower_bound_targetPE = middle;
-			}
-			
-			std::int32_t targetPE = lower_bound_targetPE;*/
 			std::int32_t targetPE = mst_PE[local_rulers[i]];
 			targetPEs_rec[i] = targetPE;
 			num_packets_per_PE[targetPE]++;
@@ -278,6 +263,14 @@ class grid_irregular_ruling_set2
 		}
 		timer.switch_category("communication");
 		std::vector<std::uint64_t> recv_answers = comm.alltoallv(kamping::send_buf(recv_requests), kamping::send_counts(recv.extract_recv_counts())).extract_recv_buffer();
+		
+		//hier meins
+		std::function<std::uint64_t(const std::uint64_t)> lambda = [&] (std::uint64_t request) { return map_ruler_to_its_index[request-node_offset] + prefix_sum_num_rulers_per_PE[rank];};
+		my_communicator my_communicator;
+		std::vector<std::uint64_t> recv_answers2 = my_communicator.request_reply(requests, num_packets_per_PE, lambda, comm, grid_comm);
+		recv_answers = recv_answers2;
+		//#####################################################################################
+		
 		timer.switch_category("local_work");
 		std::fill(num_packets_per_PE.begin(), num_packets_per_PE.end(), 0);
 		for (std::uint64_t i = 0; i < local_rulers.size(); i++)
@@ -347,7 +340,7 @@ class grid_irregular_ruling_set2
 			del[i] = prefix_sum_num_vertices_per_PE[size] - 1 - (del[i] + recv_answers[packet_index]);
 		}
 		
-		//timer.finalize(comm);
+		timer.finalize(comm, "grid_irregular_ruling_set2");
 
 
 	

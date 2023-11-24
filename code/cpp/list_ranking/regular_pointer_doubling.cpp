@@ -156,7 +156,7 @@ class regular_pointer_doubling
 			}
 	
 		}
-		timer.finalize(comm, "regular_pointer_doubling");
+		//timer.finalize(comm, "regular_pointer_doubling");
 
 		/*
 		std::cout << rank << " mit rank array:\n";

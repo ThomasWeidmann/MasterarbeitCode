@@ -219,7 +219,7 @@ class regular_ruling_set2
 		{
 			prefix_sum_num_vertices_per_PE[i] = prefix_sum_num_vertices_per_PE[i-1] + num_local_vertices_per_PE[i-1];
 		}
-		
+		if (rank == 0) std::cout << num_local_vertices * size << " reduziert auf " << prefix_sum_num_vertices_per_PE[size] << std::endl;
 		
 		std::vector<std::uint64_t> map_ruler_to_its_index(num_local_vertices);
 		std::vector<std::uint64_t> s_rec(local_rulers.size());

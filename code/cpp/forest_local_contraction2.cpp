@@ -110,7 +110,7 @@ class forest_local_contraction2
 			}
 			else if (s[i] / num_local_vertices == rank)
 			{
-				removed_nodes.push_back({i + node_offset, local_root[i], dist_local_root[i]});
+				removed_nodes.push_back({static_cast<std::uint64_t>(i + node_offset), static_cast<std::uint64_t>(local_root[i]), static_cast<std::int64_t>(dist_local_root[i])});
 				//std::cout << "removed node " << i + node_offset << " zeigt auf " << local_root[i] << " with dist " << dist_local_root[i] << std::endl;
 
 			}
