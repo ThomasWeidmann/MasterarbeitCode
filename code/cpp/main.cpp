@@ -109,6 +109,8 @@ int main(int argc, char* argv[]) {
 		std::vector<std::int32_t> send_counts(comm.size(),1);
 		auto recv = comm.alltoallv(kamping::send_buf(send_buf), kamping::send_counts(send_counts)).extract_recv_buffer();
 		karam::mpi::GridCommunicator grid_comm;
+		
+		
 		if (ruling_set.compare(argv[1]) == 0)
 		{
 			
@@ -151,6 +153,8 @@ int main(int argc, char* argv[]) {
 			std::int32_t num_local_vertices = atoi(argv[2]);
 			std::int32_t dist_rulers = atoi(argv[3]);
 			std::vector<std::uint64_t> s = generator::generate_regular_successor_vector(num_local_vertices, comm);
+			
+			
 			regular_ruling_set2 algorithm(s, dist_rulers, 1);
 			std::vector<std::int64_t> d = algorithm.start(comm);
 			
@@ -162,7 +166,10 @@ int main(int argc, char* argv[]) {
 			std::int32_t num_local_vertices = atoi(argv[2]);
 			std::int32_t dist_rulers = atoi(argv[3]);
 			std::vector<std::uint64_t> s = generator::generate_regular_successor_vector(num_local_vertices, comm);
-			grid_regular_ruling_set2 algorithm(s, dist_rulers, 1);
+			
+			int communication_mode = atoi(argv[4]);
+			
+			grid_regular_ruling_set2 algorithm(s, dist_rulers, 1, communication_mode);
 			std::vector<std::int64_t> d = algorithm.start(comm, grid_comm);
 			
 			test::regular_test(comm, s, d);
@@ -173,7 +180,10 @@ int main(int argc, char* argv[]) {
 			std::int32_t num_local_vertices = atoi(argv[2]);
 			std::int32_t dist_rulers = atoi(argv[3]);
 			std::vector<std::uint64_t> s = generator::generate_regular_successor_vector(num_local_vertices, comm);
-			grid_regular_ruling_set2 algorithm(s, dist_rulers, 2);
+			
+			int communication_mode = atoi(argv[4]);
+			
+			grid_regular_ruling_set2 algorithm(s, dist_rulers, 2, communication_mode);
 			std::vector<std::int64_t> d = algorithm.start(comm, grid_comm);
 			
 			test::regular_test(comm, s, d);
@@ -349,9 +359,30 @@ int main(int argc, char* argv[]) {
 		}
 		else
 		{
-			my_communicator my_communicator;
-			my_communicator.test(comm, grid_comm);
-			//error(std::string(argv[1]) + " is not a name of an algorithm or wrong parameters");
+			/*
+			int n = atoi(argv[2]);
+			std::vector<int> test(n*mpi_size);
+			std::iota(test.begin(), test.end(), 0);
+			std::vector<int> send_counts(mpi_size, n);
+			
+			std::function<int(const int)> lambda = [&](std::uint64_t i ) {return i;}; 
+			
+			
+			auto recv = request_reply_grid(test, send_counts, lambda, comm, grid_comm);
+			if (mpi_rank == 0)
+				std::cout << "n = " << recv.size() << std::endl;
+		
+			bool correct = true;
+			for (int i = 0; i < recv.size() - 1; i++)
+				if (recv[i] >= recv[i+1])
+					correct = false;
+              
+			if (correct)
+				std::cout << mpi_rank << " ist korrekt" << std::endl;
+			else
+				std::cout << mpi_rank << " ist nicht korrekt" << std::endl;*/
+			
+			error(std::string(argv[1]) + " is not a name of an algorithm or wrong parameters");
 		}
 	}
 	

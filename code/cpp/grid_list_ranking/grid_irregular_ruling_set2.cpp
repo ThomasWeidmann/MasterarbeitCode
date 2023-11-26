@@ -15,13 +15,14 @@ class grid_irregular_ruling_set2
 	
 	public:
 	
-	grid_irregular_ruling_set2(std::vector<std::uint64_t>& s, std::vector<std::int64_t> r, std::vector<std::uint32_t> targetPEs, std::uint64_t dist_rulers, std::vector<std::uint64_t> prefix_sum_num_vertices_per_PE)
+	grid_irregular_ruling_set2(std::vector<std::uint64_t>& s, std::vector<std::int64_t> r, std::vector<std::uint32_t> targetPEs, std::uint64_t dist_rulers, std::vector<std::uint64_t> prefix_sum_num_vertices_per_PE, int communication_mode)
 	{
 		this->s = s;
 		this->dist_rulers = dist_rulers;
 		this->r = r;
 		this->targetPEs = targetPEs;
 		this->prefix_sum_num_vertices_per_PE = prefix_sum_num_vertices_per_PE;
+		this->communication_mode = communication_mode;
 	}
 	
 	
@@ -98,19 +99,15 @@ class grid_irregular_ruling_set2
 				std::cout << "(" << packet.ruler_source << "," << packet.destination << "," << packet.distance << "),";
 			std::cout << std::endl;*/
 			
-			
-			timer.switch_category("communication");
-			std::vector<karam::mpi::IndirectMessage<packet>> recv_buffer = my_grid_all_to_all(out_buffer, num_packets_per_PE, grid_comm,comm).extract_recv_buffer();
-
-			//std::vector<packet> recv_buffer = comm.alltoallv(kamping::send_buf(out_buffer), kamping::send_counts(num_packets_per_PE)).extract_recv_buffer();
-			timer.switch_category("local_work");
+			std::vector<packet> recv_buffer = alltoall(timer, out_buffer, num_packets_per_PE, comm, grid_comm, communication_mode);
+	
 			std::fill(num_packets_per_PE.begin(), num_packets_per_PE.end(), 0);
 			
 			
 			std::uint64_t num_forwarded_packages = 0;
 			for (int i = 0; i < recv_buffer.size(); i++)
 			{
-				std::uint64_t local_index = recv_buffer[i].payload().destination - node_offset;
+				std::uint64_t local_index = recv_buffer[i].destination - node_offset;
 				
 				
 				mark_as_reached(local_index);
@@ -156,10 +153,10 @@ class grid_irregular_ruling_set2
 	 
 			for (int i = 0; i < recv_buffer.size(); i++) 
 			{
-				std::uint64_t local_index = recv_buffer[i].payload().destination - node_offset;
-				mst[local_index] = recv_buffer[i].payload().ruler_source;
-				del[local_index] = recv_buffer[i].payload().distance;
-				mst_PE[local_index] = recv_buffer[i].payload().ruler_PE;
+				std::uint64_t local_index = recv_buffer[i].destination - node_offset;
+				mst[local_index] = recv_buffer[i].ruler_source;
+				del[local_index] = recv_buffer[i].distance;
+				mst_PE[local_index] = recv_buffer[i].ruler_PE;
 				
 		
 				if (!is_final(local_index) && !is_ruler(local_index)) 
@@ -169,10 +166,10 @@ class grid_irregular_ruling_set2
 					
 					
 					
-					out_buffer[packet_index].ruler_source = recv_buffer[i].payload().ruler_source; 
+					out_buffer[packet_index].ruler_source = recv_buffer[i].ruler_source; 
 					out_buffer[packet_index].destination = unmask(s[local_index]); 
-					out_buffer[packet_index].distance = recv_buffer[i].payload().distance + r[local_index];
-					out_buffer[packet_index].ruler_PE = recv_buffer[i].payload().ruler_PE;
+					out_buffer[packet_index].distance = recv_buffer[i].distance + r[local_index];
+					out_buffer[packet_index].ruler_PE = recv_buffer[i].ruler_PE;
 				}	
 
 			}
@@ -193,21 +190,8 @@ class grid_irregular_ruling_set2
 				
 			}
 			
-			/*
-			//count how many nodes reached
-			std::uint64_t num_nodes_reached = 0;
-			for (std::uint64_t i = 0; i < num_local_vertices; i++)
-				if (is_reached(i))
-					num_nodes_reached++;
-				
-			if (rank == 0)  std::cout << "iteration " << iteration << " with left " << num_local_vertices - num_nodes_reached << std::endl;
-			*/
 		}
 		
-		/*
-		for (int i = 0; i < num_local_vertices; i++)
-			std::cout << i + node_offset << " hat von ruler " << mst[i] << " die distanz " << del[i] << ", " << is_ruler(i) << std::endl;
-		*/
 		timer.add_checkpoint("rekursion_vorbereiten");
 
 		//now just the global starting node is unreached, this node is also always a ruler
@@ -226,9 +210,7 @@ class grid_irregular_ruling_set2
 		std::vector<std::uint64_t> s_rec(local_rulers.size());
 		std::vector<std::int64_t> r_rec(local_rulers.size());
 		std::vector<std::uint32_t> targetPEs_rec(local_rulers.size());
-	
-		//########################################################################################################
-		
+			
 		std::vector<std::uint64_t> requests(local_rulers.size());
 		std::fill(num_packets_per_PE.begin(), num_packets_per_PE.end(), 0);
 		for (std::uint64_t i = 0; i < local_rulers.size(); i++)
@@ -249,27 +231,9 @@ class grid_irregular_ruling_set2
 			requests[packet_index] = mst[local_rulers[i]];
 		}
 		
-		timer.switch_category("communication");
-		auto recv = comm.alltoallv(kamping::send_buf(requests), kamping::send_counts(num_packets_per_PE));
-		timer.switch_category("local_work");
-
-		std::vector<std::uint64_t> recv_requests = recv.extract_recv_buffer();
-		
-		
-		//answers können inplace in requests eingetragen werden
-		for (std::uint64_t i = 0; i < recv_requests.size(); i++)
-		{
-			recv_requests[i] = map_ruler_to_its_index[recv_requests[i]-node_offset] + prefix_sum_num_rulers_per_PE[rank];
-		}
-		timer.switch_category("communication");
-		std::vector<std::uint64_t> recv_answers = comm.alltoallv(kamping::send_buf(recv_requests), kamping::send_counts(recv.extract_recv_counts())).extract_recv_buffer();
-		
-		//hier meins
+	
 		std::function<std::uint64_t(const std::uint64_t)> lambda = [&] (std::uint64_t request) { return map_ruler_to_its_index[request-node_offset] + prefix_sum_num_rulers_per_PE[rank];};
-		my_communicator my_communicator;
-		std::vector<std::uint64_t> recv_answers2 = my_communicator.request_reply(requests, num_packets_per_PE, lambda, comm, grid_comm);
-		recv_answers = recv_answers2;
-		//#####################################################################################
+		std::vector<std::uint64_t> recv_answers = request_reply(timer, requests, num_packets_per_PE, lambda, comm, grid_comm, communication_mode);
 		
 		timer.switch_category("local_work");
 		std::fill(num_packets_per_PE.begin(), num_packets_per_PE.end(), 0);
@@ -283,7 +247,7 @@ class grid_irregular_ruling_set2
 		
 		timer.add_checkpoint("rekursion");
 
-		grid_irregular_pointer_doubling algorithm(s_rec, r_rec, targetPEs_rec, prefix_sum_num_rulers_per_PE);
+		grid_irregular_pointer_doubling algorithm(s_rec, r_rec, targetPEs_rec, prefix_sum_num_rulers_per_PE, communication_mode);
 		std::vector<std::int64_t> ranks = algorithm.start(comm, grid_comm);
 		timer.add_checkpoint("finalen_ranks_berechnen");
 		
@@ -318,19 +282,10 @@ class grid_irregular_ruling_set2
 			requests[packet_index] = mst[i];
 		}
 		
-		timer.switch_category("communication");
-		auto recv2 = comm.alltoallv(kamping::send_buf(requests), kamping::send_counts(num_packets_per_PE));
-		timer.switch_category("local_work");
-		recv_requests = recv2.extract_recv_buffer();
-		num_packets_per_PE = recv2.extract_recv_counts();
-		for (std::uint64_t i = 0; i < recv_requests.size(); i++)
-		{
-			recv_requests[i] = ranks[map_ruler_to_its_index[recv_requests[i] - node_offset]];
-		}
+		std::function<std::uint64_t(const std::uint64_t)> lambda2 = [&] (std::uint64_t request) { return ranks[map_ruler_to_its_index[request - node_offset]];};
+		recv_answers = request_reply(timer, requests, num_packets_per_PE, lambda2, comm, grid_comm, communication_mode);
+
 		
-		timer.switch_category("communication");
-		recv_answers = comm.alltoallv(kamping::send_buf(recv_requests), kamping::send_counts(num_packets_per_PE)).extract_recv_buffer();
-		timer.switch_category("local_work");
 		std::fill(num_packets_per_PE.begin(), num_packets_per_PE.end(), 0);
 		
 		for (std::uint64_t i = 0; i < num_local_vertices; i++)
@@ -423,6 +378,8 @@ class grid_irregular_ruling_set2
 	
 	
 	private:
+	int communication_mode;
+	
 	std::uint64_t node_offset;
 	std::uint64_t num_local_vertices;
 	std::uint64_t rank, size;

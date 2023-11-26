@@ -18,17 +18,25 @@ class grid_irregular_pointer_doubling
 	
 	public:
 	
-	grid_irregular_pointer_doubling(std::vector<std::uint64_t>& s, std::vector<std::int64_t> r, std::vector<std::uint32_t> targetPEs, std::vector<std::uint64_t> prefix_sum_num_vertices_per_PE)
+	grid_irregular_pointer_doubling(std::vector<std::uint64_t>& s, std::vector<std::int64_t> r, std::vector<std::uint32_t> targetPEs, std::vector<std::uint64_t> prefix_sum_num_vertices_per_PE, int communication_mode)
 	{
 		this->s = s;
 		this->r = r;
 		this->targetPEs = targetPEs;
 		this->prefix_sum_num_vertices_per_PE = prefix_sum_num_vertices_per_PE;
+		this->communication_mode = communication_mode;
 	}
 	
 	
 	std::vector<std::int64_t> start(kamping::Communicator<>& comm, karam::mpi::GridCommunicator grid_comm)
 	{
+		std::vector<std::string> categories = {"local_work", "communication", "other"};
+		timer timer("ruler_pakete_senden", categories, "local_work", "grid_irregular_pointer_doubling");
+		
+		timer.add_info(std::string("num_local_vertices"), std::to_string(num_local_vertices), true);
+		
+		
+		
 		rank = comm.rank();
 		size = comm.size();
 		num_local_vertices = s.size();
@@ -88,28 +96,19 @@ class grid_irregular_pointer_doubling
 				}
 				
 			}
-			auto recv = comm.alltoallv(kamping::send_buf(requests), kamping::send_counts(num_packets_per_PE));
-			std::vector<node_request> recv_requests = recv.extract_recv_buffer();
-			num_packets_per_PE = recv.extract_recv_counts();
-			answers.resize(recv_requests.size());
-			
-		
-			
-			for (std::int32_t i = 0; i < recv_requests.size(); i++)
-			{
-				
 
-				
-				std::int32_t local_index = recv_requests[i].mst - node_offset;
-				answers[i].node = recv_requests[i].node;
-				answers[i].r_of_mst = r[local_index];
-				answers[i].mst_of_mst = q[local_index];
-				answers[i].targetPE_of_mst = targetPEs[local_index];
-				answers[i].passive_of_mst = passive[local_index];
-			}
+			std::function<answer(const node_request)> lambda = [&] (node_request request) { 
+				std::uint64_t local_index = request.mst - node_offset;
+				answer answer;
+				answer.node = request.node;
+				answer.r_of_mst = r[local_index];
+				answer.mst_of_mst = q[local_index];
+				answer.targetPE_of_mst = targetPEs[local_index];
+				answer.passive_of_mst = passive[local_index];
+				return answer;
+			};
+			std::vector<answer> recv_answers = request_reply<node_request,answer>(timer, requests, num_packets_per_PE, lambda, comm, grid_comm, communication_mode);
 		
-			std::vector<answer> recv_answers = comm.alltoallv(kamping::send_buf(answers), kamping::send_counts(num_packets_per_PE)).extract_recv_buffer();
-			//dann answers eingetragen
 			
 			
 			for (std::int32_t i = 0; i < recv_answers.size(); i++)
@@ -138,6 +137,8 @@ class grid_irregular_pointer_doubling
 	
 	
 	private:
+	int communication_mode;
+	
 	std::uint64_t node_offset;
 	std::uint64_t num_local_vertices;
 	std::uint64_t num_global_vertices;
