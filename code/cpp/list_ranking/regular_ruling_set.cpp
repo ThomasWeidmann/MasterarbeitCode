@@ -118,6 +118,7 @@ class regular_ruling_set
 			
 			//timer.add_checkpoint("iteration " + std::to_string(iteration));
 			
+			/*
 			if (iteration == ((int) (distance_rulers * std::log(distance_rulers))))
 			{
 				std::vector<int> recv_left;
@@ -127,7 +128,7 @@ class regular_ruling_set
 				for (int p = 0; p < size; p++)
 					sum += recv_left[p];
 				if (rank == 0) std::cout << sum << " sollte gleich sein mit " << num_local_vertices * size / distance_rulers << std::endl;
-			}
+			}*/
 			
 			std::fill(num_packets_per_PE.begin(), num_packets_per_PE.end(), 0);
 			more_nodes_reached = false;
@@ -181,6 +182,33 @@ class regular_ruling_set
 		}
 		
 		if (rank == 0) std::cout << "num_iterations = " << iteration << std::endl;
+		
+		
+		std::vector<std::uint64_t> dist(iteration-1,0);
+		for (int i = 0; i < num_local_rulers; i++)
+		{
+			if (del[i] != -1)
+				dist[del[i]]++;
+		}
+		std::vector<std::uint64_t> recv_dist;
+		comm.allgather(kamping::send_buf(dist), kamping::recv_buf<kamping::resize_to_fit>(recv_dist));
+			
+			
+		if (rank == 0)
+		{
+			for (int i = 0; i < dist.size(); i++)
+			{
+				for (int p = 1; p < size; p++)
+					dist[i] += recv_dist[i + p*dist.size()];
+			}
+			std::cout << "[";
+			for (int i = 0; i < dist.size(); i++)
+				std::cout << dist[i] << ",";
+			std::cout << "]" << std::endl;
+		}
+			
+		
+		
 		
 		timer.add_checkpoint("rekursion_vorbereiten");
 

@@ -131,25 +131,40 @@ def generate_work_communication_graph(path, algorithm_name, extra_info):
 
     plt.savefig(work_communication_dir + "work_and_communication_of_" + algorithm_name + ".pdf")
     plt.clf() 
-    
-path1 = 'regular_ruling_set2.txt'
-path2 = 'regular_ruling_set2_rec.txt'
+
+
+path1 = 'grid_regular_ruling_set2.txt'
+path2 = 'grid_regular_ruling_set2_rec.txt'    
+
 path3 = 'grid_regular_ruling_set2.txt'
 path4 = 'grid_regular_ruling_set2_rec.txt'
 
+path5 = 'grid_regular_ruling_set2.txt'
+path6 = 'grid_regular_ruling_set2_rec.txt'
 
-paths = [path1, path2, path3, path4]
+
+paths = [path1, path2, path3, path4, path5, path6]
+
+names = [path[:-4] for path in paths]
+
+names = ["com_mode_0_ruling_set2", "com_mode_0_ruling_set2_rec", "com_mode_1_ruling_set2", "com_mode_1_ruling_set2_rec","com_mode_2_ruling_set2", "com_mode_2_ruling_set2_rec" ]
 
 
-names = [path[:-4] for path in paths] 
 
-save_dir = '../../other/supermuc_auswertung2/experiments3/grid/'
-paths = [save_dir + path for path in paths]
+save_dir1 = '../../other/supermuc_auswertung2/aufschrieb/communication_mode_0/'
+save_dir2 = '../../other/supermuc_auswertung2/aufschrieb/communication_mode_1/'
+save_dir3 = '../../other/supermuc_auswertung2/aufschrieb/communication_mode_2/'
 
-extra_info = "input=tree with 1.000.000 per PE"
+paths = [save_dir1 + path1, save_dir1 + path2, save_dir2 + path3, save_dir2 + path4,save_dir3 + path5, save_dir3 + path6]
+
+
+extra_info = "input=random_liset with 1.000.000 per PE"
 ##########WICHTIG########################
 #for path in paths:
     #to_json(path)
+
+
+
 
 for i in range(len(paths)):
     generate_time_step_graph(paths[i], names[i], extra_info)

@@ -37,6 +37,7 @@
 
 #include "communicator.cpp"
 //#include "karam/mpi/grid_alltoall.hpp"
+#include "list_ranking/example.cpp"
 
 #include "list_ranking/regular_ruling_set.cpp"
 #include "list_ranking/regular_pointer_doubling.cpp"
@@ -94,7 +95,7 @@ int main(int argc, char* argv[]) {
 	std::string euler_tour = "euler_tour";
 	std::string forest_rooting_euler = "forest_euler_tour";
 	std::string lb_tree_rooting = "lb_tree_rooting";
-	std::string grid_test = "grid_test";
+	std::string asynchron = "asynchron";
 	std::string grid_ruling_set2 = "grid_ruling_set2";
 	std::string grid_ruling_set2_rec = "grid_ruling_set2_rec";
 	std::string local_contract = "local_contract";
@@ -117,13 +118,13 @@ int main(int argc, char* argv[]) {
 			std::int64_t num_local_vertices = atoi(argv[2]);
 
 			std::int64_t dist_rulers = atoi(argv[3]);
-			
+			/*
 			double n = num_local_vertices * mpi_size;
 			double dist = dist_rulers;
 			double exact = std::log(0.5 / n) / std::log((dist - 1)/dist);
 			double approx = dist * std::log(2*n);
 			if (mpi_rank == 0) std::cout << "exact = " << exact << std::endl;
-			if (mpi_rank == 0) std::cout << "approx = " << approx << std::endl;
+			if (mpi_rank == 0) std::cout << "approx = " << approx << std::endl;*/
 			
 			std::vector<std::uint64_t> s = generator::generate_regular_successor_vector(num_local_vertices, comm);
 			regular_ruling_set algorithm = regular_ruling_set(s, dist_rulers, 1);
@@ -292,95 +293,130 @@ int main(int argc, char* argv[]) {
 
 			
 		}
-		else if (grid_test.compare(argv[1]) == 0)
+		else if (asynchron.compare(argv[1]) == 0)
 		{
-			std::uint64_t const num_local_vertices = 1000000;
-			
-
-			
-			std::vector<std::string> categories = {"calc, other"};
-			timer timer("test_array_erstellen", categories, "calc", "grid_test");
-			
+			std::uint64_t num_local_vertices = atoi(argv[2]);
+			std::int32_t dist_rulers = atoi(argv[3]);
 			std::vector<std::uint64_t> s = generator::generate_regular_successor_vector(num_local_vertices, comm);
 			
-		
-			for (int times = 1; times <= 100000; times *= 10)
-			{
-				//times means the number of all_to_all operations
-				//when times=1000, the send array is divided into 1000 pieces and send independently
-				
-				auto get_destination = [](const std::uint64_t& e) {
-					return e / 1000000;
-				};
-				timer.add_checkpoint("grid_times_" + std::to_string(times));
-				for (int i = 0; i < times; i++)
-				{
-					std::vector<std::uint64_t> send(&s[i * num_local_vertices / times], &s[(i+1) * num_local_vertices / times]);
-					auto result = grid_mpi_all_to_all(send, get_destination, grid_comm).extract_recv_buffer();
-				}
-								
-			}
+			example example;
 			
-			std::vector<std::int32_t> num_packets_per_PE(mpi_size,0);
-			std::vector<std::int32_t> send_displacements(mpi_size + 1,0);
-			for (int times = 1; times <= 100000; times *= 10)
-			{
-				timer.add_checkpoint("my_grid_times_" + std::to_string(times));
-				for (int i = 0; i < times; i++)
-				{
-					std::fill(num_packets_per_PE.begin(), num_packets_per_PE.end(), 0);
-
-					for (int i2 = i * num_local_vertices / times; i2 < (i+1) * num_local_vertices / times;i2++)
-					{
-						std::int64_t targetPE = s[i2] / num_local_vertices;
-						num_packets_per_PE[targetPE]++;
-					}
-					send_displacements[0]=0;
-					for (std::int32_t i = 1; i < mpi_size + 1; i++)
-						send_displacements[i] = send_displacements[i-1] + num_packets_per_PE[i-1];
-					std::fill(num_packets_per_PE.begin(), num_packets_per_PE.end(), 0);
-					std::vector<std::uint64_t> send(num_local_vertices / times);
-					for (int i2 = i * num_local_vertices / times; i2 < (i+1) * num_local_vertices / times;i2++)
-					{
-						std::int64_t targetPE = s[i2] / num_local_vertices;
-						std::int64_t packet_index = send_displacements[targetPE] + num_packets_per_PE[targetPE]++;
-						send[packet_index] = s[i2];
-					}
-					auto result = my_grid_all_to_all(send, num_packets_per_PE, grid_comm,comm).extract_recv_buffer();
-
-					//auto recv = comm.alltoallv(kamping::send_buf(send), kamping::send_counts(num_packets_per_PE)).extract_recv_buffer();
-				
-				}
-				
-			}
-				
-			timer.finalize(comm, "test");
+			example.test(s, dist_rulers, comm);
+			
 			
 		}
 		else
 		{
 			/*
-			int n = atoi(argv[2]);
-			std::vector<int> test(n*mpi_size);
-			std::iota(test.begin(), test.end(), 0);
-			std::vector<int> send_counts(mpi_size, n);
-			
-			std::function<int(const int)> lambda = [&](std::uint64_t i ) {return i;}; 
-			
-			
-			auto recv = request_reply_grid(test, send_counts, lambda, comm, grid_comm);
-			if (mpi_rank == 0)
-				std::cout << "n = " << recv.size() << std::endl;
-		
-			bool correct = true;
-			for (int i = 0; i < recv.size() - 1; i++)
-				if (recv[i] >= recv[i+1])
-					correct = false;
-              
-			if (correct)
-				std::cout << mpi_rank << " ist korrekt" << std::endl;
-			else
-				std::cout << mpi_rank << " ist nicht korrekt" << std::endl;*/
+			int rank, size;
+			MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+			MPI_Comm_size(MPI_COMM_WORLD, &size);
+			CLI::App app;
+			app.option_defaults()->always_capture_default();
+			int queue_version = 1;
+			app.add_option("--queue_version", queue_version)->expected(1, 2);
+			std::size_t number_of_messages = 10;
+			app.add_option("--number_of_messages", number_of_messages, "The number of messages to send from each PE");
+			std::size_t iterations = 1;
+			app.add_option("--iterations", iterations);
+			bool use_test_any = false;
+			app.add_flag("--use_test_any", use_test_any);
+			bool use_custom_implementations = false;
+			app.add_flag("--use_custom_implementations", use_custom_implementations);
+
+			//CLI11_PARSE(app, argc, argv);
+
+			DEBUG_BARRIER(rank);
+			const int message_size = 10;
+
+			auto merger = [](std::vector<int>& buffer, std::vector<int> msg, int) {
+				for (auto elem : msg) {
+					buffer.emplace_back(elem);
+				}
+				return msg.size();
+			};
+			auto splitter = [](std::vector<int>& buffer, auto on_message, message_queue::PEID sender) {
+				for (size_t i = 0; i < buffer.size(); i += message_size) {
+					on_message(buffer.cbegin() + i, buffer.cbegin() + i + message_size, sender);
+				}
+			};
+			for (size_t i = 0; i < iterations; i++) {
+				MPI_Barrier(MPI_COMM_WORLD);
+				double start = MPI_Wtime();
+				int local_max_test_size = 0;
+				size_t local_max_active_requests = 0;
+
+				using MessageContainer = std::vector<int>;
+				// using MessageContainer = message_queue::testing::OwnContainer<int>;
+				// using MessageContainer = std::vector<int, message_queue::testing::CustomAllocator<int>>;
+
+				auto queue = message_queue::MessageQueue<int, MessageContainer>{};
+				if (use_test_any) {
+					queue.use_test_any();
+				}
+				std::default_random_engine eng;
+				eng.seed(rank);
+				std::bernoulli_distribution bernoulli_dist(0.1);
+				std::uniform_int_distribution<size_t> rank_dist(1, size - 1);
+				// auto queue = message_queue::make_mesqueue<int>(std::move(merger), std::move(splitter));
+				// queue.set_threshold(200);
+				message_queue::PEID receiver = rank_dist(eng);
+				MessageContainer message(message_size);
+				message[0] = rank;
+				message[1] = 0;
+				for (size_t i = 0; i < number_of_messages; ++i) {
+					message[2] = i;
+					queue.post_message(MessageContainer(message), (rank + rank_dist(eng)) % size);
+				}
+				auto on_message = [&](message_queue::Envelope<int> auto envelope) {
+					if (bernoulli_dist(eng)) {
+						auto begin = envelope.message.begin();
+						std::stringstream ss;
+						ss << "Message " << *(begin + 2) << " from " << *begin << " arrived after " << *(begin + 1) << " hops.";
+						message_queue::atomic_debug(ss.str());
+					} else {
+						KASSERT(envelope.message.size() > 1);
+						envelope.message[1]++;
+						queue.post_message(std::move(envelope.message), (rank + rank_dist(eng)) % size);
+					}
+				};
+				queue.poll(on_message);
+				queue.terminate(on_message);
+				using namespace std::chrono;
+				local_max_active_requests = queue.max_active_requests();
+				MPI_Barrier(MPI_COMM_WORLD);
+				double end = MPI_Wtime();
+				int global_max_test_size;
+				MPI_Reduce(&local_max_test_size, &global_max_test_size, 1, MPI_INT, MPI_MAX, 0, MPI_COMM_WORLD);
+
+				size_t global_max_active_requests;
+				MPI_Reduce(&local_max_active_requests, &global_max_active_requests, 1, MPI_UINT64_T, MPI_MAX, 0,
+						   MPI_COMM_WORLD);
+				// print CLI options
+				std::unordered_map<std::string, std::string> stats;
+				for (const auto& option : app.get_options()) {
+					if (option->get_single_name() == "help") {
+						continue;
+					}
+					stats[option->get_single_name()] = option->as<std::string>();
+					if (stats[option->get_single_name()].empty()) {
+						stats[option->get_single_name()] = "false";
+					}
+				}
+				stats["ranks"] = fmt::format("{}", size);
+				stats["time"] = fmt::format("{}", end - start);
+				stats["iteration"] = fmt::format("{}", i);
+				stats["max_test_size"] = fmt::format("{}", global_max_test_size);
+				stats["max_active_requests"] = fmt::format("{}", global_max_active_requests);
+
+				if (rank == 0) {
+					std::cout << "RESULT";
+					for (const auto& [key, value] : stats) {
+						std::cout << " " << key << "=" << value;
+					}
+					std::cout << "\n";
+				}
+			}*/
 			
 			error(std::string(argv[1]) + " is not a name of an algorithm or wrong parameters");
 		}
