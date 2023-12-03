@@ -103,9 +103,9 @@ class example
 			ruler_index++;
 		}
 		//timer.add_checkpoint("pakete_verfolgen");
-		if (rank == 0) std::cout << "bis hier" << std::endl;
-		//queue.terminate(on_message);
-		if (rank == 0) std::cout << "sogar bis hier" << std::endl;
+		//if (rank == 0) std::cout << "bis hier" << std::endl;
+		queue.terminate(on_message);
+		//if (rank == 0) std::cout << "sogar bis hier" << std::endl;
 
 		timer.add_checkpoint("rekursion_vorbereiten");
 
