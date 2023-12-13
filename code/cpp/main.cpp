@@ -38,6 +38,9 @@
 #include "communicator.cpp"
 //#include "karam/mpi/grid_alltoall.hpp"
 #include "list_ranking/example.cpp"
+#include "list_ranking/asynchron_ruling_set2.cpp"
+#include "list_ranking/grid_asynchron_ruling_set2.cpp"
+
 
 #include "list_ranking/regular_ruling_set.cpp"
 #include "list_ranking/regular_pointer_doubling.cpp"
@@ -96,6 +99,8 @@ int main(int argc, char* argv[]) {
 	std::string forest_rooting_euler = "forest_euler_tour";
 	std::string lb_tree_rooting = "lb_tree_rooting";
 	std::string asynchron = "asynchron";
+	std::string asynchron2 = "asynchron2";
+	std::string grid_asynchron = "grid_asynchron";
 	std::string grid_ruling_set2 = "grid_ruling_set2";
 	std::string grid_ruling_set2_rec = "grid_ruling_set2_rec";
 	std::string local_contract = "local_contract";
@@ -301,9 +306,33 @@ int main(int argc, char* argv[]) {
 			
 			example example;
 			
-			example.test(s, dist_rulers, comm);
+			std::vector<std::int64_t> d = example.test(s, dist_rulers, comm);
 			
+			test::regular_test(comm, s, d);
+		}
+		else if (asynchron2.compare(argv[1]) == 0)
+		{
+			std::uint64_t num_local_vertices = atoi(argv[2]);
+			std::int32_t dist_rulers = atoi(argv[3]);
+			std::vector<std::uint64_t> s = generator::generate_regular_successor_vector(num_local_vertices, comm);
 			
+			asynchron_ruling_set2 algorithm;
+			
+			std::vector<std::int64_t> d = algorithm.test(s, dist_rulers, comm);
+			
+			test::regular_test(comm, s, d);
+		}
+		else if (grid_asynchron.compare(argv[1]) == 0)
+		{
+			std::uint64_t num_local_vertices = atoi(argv[2]);
+			std::int32_t dist_rulers = atoi(argv[3]);
+			std::vector<std::uint64_t> s = generator::generate_regular_successor_vector(num_local_vertices, comm);
+			
+			grid_asynchron_ruling_set2 algorithm;
+			
+			std::vector<std::int64_t> d = algorithm.test(s, dist_rulers, comm);
+			
+			test::regular_test(comm, s, d);
 		}
 		else
 		{

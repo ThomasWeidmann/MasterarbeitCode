@@ -1,99 +1,119 @@
 #include <fmt/format.h>
 #include <fmt/ranges.h>
-//#include "CLI11.hpp"
-//#include <CLI/CLI.hpp>
 #include <message-queue/buffered_queue.hpp>
-#include <message-queue/indirection.hpp>
 #include <message-queue/concepts.hpp>
+#include <message-queue/indirection.hpp>
 #include <random>
 
 #include "irregular_pointer_doubling.cpp"
 #include "irregular_ruling_set2.cpp"
 
-class example
+class grid_asynchron_ruling_set2
 {
 	public:
 	
-	example()
+	grid_asynchron_ruling_set2()
 	{
 		
 	}
 
 	std::vector<std::int64_t> test(std::vector<std::uint64_t>& s, std::uint64_t dist_rulers, kamping::Communicator<>& comm)
 	{
+		std::vector<std::string> categories = {"local_work", "communication", "other"};
+		timer timer("ruler_pakete_senden", categories, "local_work", "regular_ruling_set2");
+		
+		timer.add_info(std::string("dist_rulers"), std::to_string(dist_rulers));
+		timer.add_info(std::string("num_local_vertices"), std::to_string(num_local_vertices));
+		timer.add_info(std::string("iterations"), std::to_string(num_iterations));
+
+		
+		
+		auto merge = [](auto& buf, message_queue::PEID buffer_destination, message_queue::PEID my_rank,
+                    message_queue::Envelope auto msg) {
+			if (!buf.empty()) {
+				buf.push_back(-1);
+			}
+			
+			buf.push_back(msg.sender);
+			buf.push_back(msg.receiver);
+			
+			for (auto elem : msg.message) {
+				buf.push_back(std::get<0>(elem));
+				buf.push_back(std::get<1>(elem));
+				buf.push_back(std::get<2>(elem));
+			}
+		};
+		
+		auto split = [](message_queue::MPIBuffer<std::uint64_t> auto const& buf, message_queue::PEID buffer_origin,
+						message_queue::PEID my_rank) {
+			return buf | std::ranges::views::split(-1) |
+				   std::ranges::views::transform([&, buffer_origin = buffer_origin, my_rank = my_rank](auto&& chunk) {
+
+					   auto sized_chunk = std::move(chunk);
+					   int sender = sized_chunk[0];
+					   int receiver = sized_chunk[1];
+					   sized_chunk = sized_chunk | std::ranges::views::drop(2);
+
+					   std::vector<std::tuple<std::uint64_t,std::uint64_t,std::uint64_t>> message(0);
+					   
+					   int num_messages = sized_chunk.size() / 3;
+					   
+					   for (int i = 0; i < num_messages; i++)
+					   {
+						   message.push_back(std::tuple{sized_chunk[3*i],sized_chunk[3*i+1],sized_chunk[3*i+2]});
+					   }
+					   /*
+					   auto message = sized_chunk |
+									  std::ranges::views::transform(
+										  [](auto chunk) { return std::tuple{1,1,1,1,1}; });*/
+					   return message_queue::MessageEnvelope{
+						   .message = std::move(message), .sender = sender, .receiver = receiver, .tag = 0};
+				   });
+		};
+		
+		auto printing_cleaner = [](auto& buf, message_queue::PEID receiver) {
+			//message_queue::atomic_debug(fmt::format("Preparing buffer {} to {}.", buf, receiver));
+		};
+		auto queue =
+			message_queue::make_buffered_queue<std::tuple<std::uint64_t,std::uint64_t,std::uint64_t>, std::uint64_t>(MPI_COMM_WORLD, merge, split, printing_cleaner);
+		auto indirection =
+        message_queue::IndirectionAdapter<message_queue::GridIndirectionScheme, decltype(queue)>{std::move(queue)};
 		
 		this->s = s;
-		
-		
-		
 		rank = comm.rank();
 		size = comm.size();
 		num_local_vertices = s.size();
 		node_offset = rank * num_local_vertices;
 		std::uint64_t out_buffer_size = num_local_vertices/dist_rulers;
 		
-		std::vector<std::string> categories = {"local_work", "communication", "other", "part1", "part2", "part3"};
-		timer timer("ruler_pakete_senden", categories, "local_work", "regular_ruling_set2");
-		
-		timer.add_info(std::string("dist_rulers"), std::to_string(dist_rulers));
-		timer.add_info(std::string("num_local_vertices"), std::to_string(num_local_vertices));
-		timer.add_info(std::string("iterations"), std::to_string(num_iterations));
 	/*
 		std::cout << rank << " mit successor array:\n";
 		for (int i = 0; i < num_local_vertices; i++)
 			std::cout << s[i] << " ";
-		std::cout << std::endl;*/
-	
+		std::cout << std::endl;
+	*/
 	
 		std::vector<uint64_t> local_rulers(0);
-		std::uint64_t ruler_index = 0; //this means that first free rulers has an index >= ruler_index
-		
-		/*struct packet{
-		std::uint64_t ruler_source;
-		std::uint64_t destination;
-		std::uint32_t distance;
-		*/
-		auto queue = message_queue::make_buffered_queue<std::tuple<std::uint64_t,std::uint64_t,std::uint64_t>>(MPI_COMM_WORLD, [](auto& buf, message_queue::PEID receiver) {});
-		
+		std::uint64_t ruler_index = 0;		
+			
 		std::vector<std::uint64_t> mst(num_local_vertices);
 		std::iota(mst.begin(),mst.end(),node_offset); 
 		std::vector<std::int64_t> del(num_local_vertices,0);
-
+		
+		std::vector<std::tuple<std::uint64_t,std::uint64_t,std::uint64_t>> work(0);
 		
 		auto on_message = [&](message_queue::Envelope<std::tuple<std::uint64_t,std::uint64_t,std::uint64_t>> auto envelope) {
+			indirection.reactivate();
+
 			for (std::uint64_t i = 0; i < envelope.message.size(); i++)
 			{
-				timer.switch_category("part1");
-
+				work.push_back(envelope.message[i]);
+				
 				std::uint64_t ruler_source =std::get<0>(envelope.message[i]);
 				std::uint64_t destination = std::get<1>(envelope.message[i]);
 				std::uint64_t distance = std::get<2>(envelope.message[i]);
-				std::uint64_t local_index = destination - node_offset;
-				mark_as_reached(local_index);
-				mst[local_index] = ruler_source;
-				del[local_index] = distance;
-				if (!is_ruler(destination - node_offset) && !is_final(destination - node_offset))
-				{
-					timer.switch_category("part2");
-					std::uint64_t targetPE = calculate_targetPE(s[destination - node_offset]);
-					//std::cout << rank << " on_message makes new (" << ruler_source << "," << s[destination - node_offset] << ") to PE " << targetPE << std::endl;
-
-					
-					queue.post_message(std::tuple{ruler_source, unmask(s[destination - node_offset]), distance+1}, targetPE);
-				}
-				else
-				{
-					timer.switch_category("part3");
-					while (ruler_index < num_local_vertices && (is_final(ruler_index) || is_reached(ruler_index) || is_ruler(ruler_index))) ruler_index++;
-					if (ruler_index == num_local_vertices) continue;
-										
-					std::uint64_t targetPE = calculate_targetPE(s[ruler_index]);
-					mark_as_ruler(ruler_index);
-					local_rulers.push_back(ruler_index);
-					queue.post_message(std::tuple{ruler_index + node_offset, unmask(s[ruler_index]), 1}, targetPE);
-					
-				}
-				timer.switch_category("local_work");
+				
+				//std::cout << rank << " bekommt packet (" << ruler_source << "," << destination << "," << distance << ")" << std::endl;
 			}
         };
 		
@@ -102,19 +122,61 @@ class example
 			while (is_final(ruler_index)) ruler_index++;
 			
 			local_rulers.push_back(ruler_index);
-			std::uint64_t targetPE = calculate_targetPE(s[ruler_index]);
+			std::int32_t targetPE = calculate_targetPE(s[ruler_index]);
 			mark_as_ruler(ruler_index);
 			
-			queue.post_message(std::tuple{ruler_index + node_offset, unmask(s[ruler_index]), 1}, targetPE);
+			indirection.post_message(std::tuple{ruler_index + node_offset, unmask(s[ruler_index]), 1}, targetPE);
+			//std::cout << rank << " sendet packet (" << ruler_index + node_offset << "," << unmask(s[ruler_index]) << "," << 1 << ") an PE " << targetPE << std::endl;
 			
 			ruler_index++;
 		}
-		timer.add_checkpoint("pakete_verfolgen");
-		
-		queue.terminate(on_message);
 
+		timer.add_checkpoint("pakete_verfolgen");
+
+		std::uint64_t num_reached_nodes = 0;
+		do
+		{
+			//if (rank == 0) std::cout << "iteration " << i++ << std::endl;
+			indirection.poll(on_message);
+			
+			for (std::uint64_t i = 0; i < work.size(); i++)
+			{
+				num_reached_nodes++;
+				std::uint64_t ruler_source =std::get<0>(work[i]);
+				std::uint64_t destination = std::get<1>(work[i]);
+				std::uint64_t distance = std::get<2>(work[i]);
+				
+				//std::cout << rank << " verarbeitet packet (" << ruler_source << "," << destination << "," << distance << ")" << std::endl;
+				
+				std::uint64_t local_index = destination - node_offset;
+				mark_as_reached(local_index);
+				mst[local_index] = ruler_source;
+				del[local_index] = distance;
+				if (!is_ruler(destination - node_offset) && !is_final(destination - node_offset))
+				{
+					std::uint64_t targetPE = calculate_targetPE(s[destination - node_offset]);
+					//std::cout << rank << " on_message makes new (" << ruler_source << "," << s[destination - node_offset] << ") to PE " << targetPE << std::endl
+					indirection.post_message(std::tuple{ruler_source, unmask(s[destination - node_offset]), distance+1}, targetPE);
+				}
+				else
+				{
+					while (ruler_index < num_local_vertices && (is_final(ruler_index) || is_reached(ruler_index) || is_ruler(ruler_index))) ruler_index++;
+					if (ruler_index == num_local_vertices) continue;
+										
+					std::uint64_t targetPE = calculate_targetPE(s[ruler_index]);
+					mark_as_ruler(ruler_index);
+					local_rulers.push_back(ruler_index);
+					indirection.post_message(std::tuple{ruler_index + node_offset, unmask(s[ruler_index]), 1}, targetPE);
+					
+				}
+			}
+			work.resize(0);
+			
+		} while (!indirection.terminate(on_message));
+		
 		timer.add_checkpoint("rekursion_vorbereiten");
 
+		
 		
 		/*
 		std::cout << rank << " hat folgende ruler:";
@@ -127,10 +189,7 @@ class example
 		for (int i = 0; i < num_local_vertices; i++)
 			std::cout << del[i] << " ";
 		std::cout << std::endl;*/
-			
-		//###############################
 		
-		//now just the global starting node is unreached, this node is also always a ruler
 		std::vector<std::uint64_t> num_local_vertices_per_PE;
 		comm.allgather(kamping::send_buf(local_rulers.size()), kamping::recv_buf<kamping::resize_to_fit>(num_local_vertices_per_PE));
 		std::vector<std::uint64_t> prefix_sum_num_vertices_per_PE(size + 1,0);
@@ -139,7 +198,7 @@ class example
 			prefix_sum_num_vertices_per_PE[i] = prefix_sum_num_vertices_per_PE[i-1] + num_local_vertices_per_PE[i-1];
 		}
 		
-		//if (rank == 0) std::cout << num_local_vertices * size << " reduziert auf " << prefix_sum_num_vertices_per_PE[size] << std::endl;
+		if (rank == 0) std::cout << num_local_vertices * size << " reduziert auf " << prefix_sum_num_vertices_per_PE[size] << std::endl;
 		
 		std::vector<std::uint64_t> map_ruler_to_its_index(num_local_vertices);
 		std::vector<std::uint64_t> s_rec(local_rulers.size());
@@ -186,6 +245,8 @@ class example
 		}
 		
 		timer.add_checkpoint("rekursion");
+
+		
 		std::vector<std::int64_t> ranks;
 		if (num_iterations == 2)
 		{
@@ -235,13 +296,23 @@ class example
 			del[i] = size * num_local_vertices - 1 - (del[i] + recv_answers[packet_index]);
 		}
 		
-		std::string save_dir = "regular_ruling_set2";
+		std::string save_dir = "grid_asynchron_ruling_set2";
 		if (num_iterations == 2)
-			save_dir = "regular_ruling_set2_rec";
+			save_dir = "grid_asynchron_ruling_set2_rec";
 		timer.finalize(comm, save_dir);
-
-	
+		
 		return del;
+	}
+	
+	std::uint64_t sum_it(std::uint64_t value, kamping::Communicator<>& comm)
+	{
+		std::vector<std::uint64_t> recv;
+		comm.allgather(kamping::send_buf(value), kamping::recv_buf<kamping::resize_to_fit>(recv));
+		std::uint64_t sum = 0;
+		for (int i = 0; i < comm.size(); i++)
+			sum += recv[i];
+		return sum;
+		
 	}
 	
 	void calculate_send_displacements_and_reset_num_packets_per_PE(std::vector<std::int32_t>& send_displacements, std::vector<std::int32_t	>& num_packets_per_PE)
