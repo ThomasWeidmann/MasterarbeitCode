@@ -22,6 +22,8 @@
 #include "kamping/data_buffer.hpp"
 #include "kamping/named_parameters.hpp"
 
+#include "karam/mpi/grid_alltoall.hpp"
+
 #include "timer.cpp"
 #include "generator.cpp"
 #include "test.cpp"
@@ -30,8 +32,6 @@
 #include "forest_local_contraction.cpp"
 #include "forest_local_contraction2.cpp"
 
-
-#include "grid_all_to_all.cpp"
 #include "helper_functions.cpp"
 #include "analyze_instances.cpp"
 
@@ -116,6 +116,7 @@ int main(int argc, char* argv[]) {
 		auto recv = comm.alltoallv(kamping::send_buf(send_buf), kamping::send_counts(send_counts)).extract_recv_buffer();
 		karam::mpi::GridCommunicator grid_comm;
 		
+		int communication_mode = 0; //aka direct
 		
 		if (ruling_set.compare(argv[1]) == 0)
 		{
@@ -132,7 +133,7 @@ int main(int argc, char* argv[]) {
 			if (mpi_rank == 0) std::cout << "approx = " << approx << std::endl;*/
 			
 			std::vector<std::uint64_t> s = generator::generate_regular_successor_vector(num_local_vertices, comm);
-			regular_ruling_set algorithm = regular_ruling_set(s, dist_rulers, 1);
+			regular_ruling_set algorithm = regular_ruling_set(s, dist_rulers, 1, communication_mode);
 			std::vector<std::int64_t> d = algorithm.start(comm, s, grid_comm);
 			test::regular_test(comm, s, d);
 			
@@ -148,7 +149,7 @@ int main(int argc, char* argv[]) {
 			std::int64_t dist_rulers = atoi(argv[3]);
 			std::vector<std::uint64_t> s = generator::generate_regular_successor_vector(num_local_vertices, comm);
 
-			regular_ruling_set algorithm = regular_ruling_set(s, dist_rulers, 2);
+			regular_ruling_set algorithm = regular_ruling_set(s, dist_rulers, 2, communication_mode);
 			
 			std::vector<std::int64_t> d = algorithm.start(comm, s, grid_comm);
 			
@@ -211,7 +212,7 @@ int main(int argc, char* argv[]) {
 			std::uint64_t num_local_vertices = atoi(argv[2]);
 
 			std::vector<std::uint64_t> s = generator::generate_regular_successor_vector(num_local_vertices, comm);
-			regular_pointer_doubling algorithm(s, comm);
+			regular_pointer_doubling algorithm(s, comm, communication_mode);
 			
 			std::vector<std::int64_t> d = algorithm.start(comm, grid_comm);
 			

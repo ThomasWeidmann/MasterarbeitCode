@@ -29,13 +29,14 @@ class regular_ruling_set
 	
 	public:
 	
-	regular_ruling_set(std::vector<std::uint64_t>& successors, int64_t dist_rulers, int64_t iterations)
+	regular_ruling_set(std::vector<std::uint64_t>& successors, int64_t dist_rulers, int64_t iterations, int communication_mode)
 	{
 		s = successors;
 		num_local_vertices = s.size();
 		num_local_rulers = num_local_vertices / dist_rulers;
 		distance_rulers = dist_rulers;
 		num_iterations = iterations;
+		this->communication_mode = communication_mode;
 	}
 	
 	
@@ -255,12 +256,12 @@ class regular_ruling_set
 		std::vector<std::int64_t> result;
 		if (num_iterations == 1)
 		{
-			regular_pointer_doubling algorithm(s_rec, r_rec, local_index_final_node);
+			regular_pointer_doubling algorithm(s_rec, r_rec, local_index_final_node, communication_mode);
 			result = algorithm.start(comm, grid_comm);
 		}
 		else
 		{
-			regular_ruling_set_rec algorithm(s_rec, r_rec, local_index_final_node, distance_rulers);
+			regular_ruling_set_rec algorithm(s_rec, r_rec, local_index_final_node, distance_rulers, communication_mode);
 			result = algorithm.start(comm, grid_comm);
 		}
 		timer.add_checkpoint("finalen_ranks_berechnen");
@@ -411,6 +412,7 @@ class regular_ruling_set
 
 	
 	private: 
+	int communication_mode;
 	
 	std::vector<std::uint64_t> s;
 	std::int64_t num_local_vertices;

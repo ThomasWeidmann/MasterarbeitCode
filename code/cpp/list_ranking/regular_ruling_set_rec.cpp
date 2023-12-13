@@ -30,7 +30,7 @@ class regular_ruling_set_rec
 	
 	public:
 	
-	regular_ruling_set_rec(std::vector<std::uint64_t>& successors, std::vector<std::int64_t>& ranks, std::uint64_t local_index_final, std::int32_t dist_rulers)
+	regular_ruling_set_rec(std::vector<std::uint64_t>& successors, std::vector<std::int64_t>& ranks, std::uint64_t local_index_final, std::int32_t dist_rulers, int communication_mode)
 	{
 		s = successors;
 		r = ranks;
@@ -38,7 +38,7 @@ class regular_ruling_set_rec
 		num_local_rulers = num_local_vertices / dist_rulers;
 		distance_rulers = dist_rulers;
 		local_index_final_node = local_index_final;
-		
+		this->communication_mode = communication_mode;
 	}
 	
 	
@@ -249,7 +249,7 @@ class regular_ruling_set_rec
 	
 		timer.add_checkpoint("rekursion");
 
-		regular_pointer_doubling algorithm(s_rec, r_rec, local_index_final_node_rec);
+		regular_pointer_doubling algorithm(s_rec, r_rec, local_index_final_node_rec, communication_mode);
 		std::vector<std::int64_t> result = algorithm.start(comm, grid_comm);
 		timer.add_checkpoint("finalen_ranks_berechnen");
 
@@ -387,6 +387,7 @@ class regular_ruling_set_rec
 
 	
 	private: 
+	int communication_mode;
 	
 	std::vector<std::int64_t> r;
 	std::vector<std::uint64_t> s;

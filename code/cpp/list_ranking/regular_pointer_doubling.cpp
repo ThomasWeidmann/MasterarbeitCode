@@ -20,8 +20,9 @@ class regular_pointer_doubling
 	public:
 	
 	//if this PE has final node, then final node is set to a valid value, otherweise it is -1
-	regular_pointer_doubling(std::vector<std::uint64_t>& successors, std::vector<std::int64_t>& ranks, std::uint64_t local_index_final_node)
+	regular_pointer_doubling(std::vector<std::uint64_t>& successors, std::vector<std::int64_t>& ranks, std::uint64_t local_index_final_node, int communication_mode)
 	{
+		this->communication_mode = communication_mode;
 		s = successors;
 		num_local_vertices = s.size();
 		q = s;
@@ -34,8 +35,9 @@ class regular_pointer_doubling
 	}
 	
 	
-	regular_pointer_doubling(std::vector<std::uint64_t>& successors, kamping::Communicator<>& comm)
+	regular_pointer_doubling(std::vector<std::uint64_t>& successors, kamping::Communicator<>& comm, int communication_mode)
 	{
+		this->communication_mode = communication_mode;
 		s = successors;
 		num_local_vertices = s.size();
 		q = s;
@@ -111,11 +113,8 @@ class regular_pointer_doubling
 				}
 				
 			}
-			timer.switch_category("communication");
 		
-			std::vector<node_request> recv_requests = alltoall(num_packets_per_PE, requests, comm, grid_comm).extract_recv_buffer();
-			//std::vector<node_request> recv_requests = comm.alltoallv(kamping::send_buf(requests), kamping::send_counts(num_packets_per_PE)).extract_recv_buffer();
-			timer.switch_category("local_work");
+			std::vector<node_request> recv_requests = alltoall(timer, requests, num_packets_per_PE, comm, grid_comm, communication_mode);
 
 			//dann answers gezählt
 			
@@ -139,11 +138,9 @@ class regular_pointer_doubling
 				answers[packet_index].mst_of_mst = q[local_index];
 				answers[packet_index].passive_of_mst = passive[local_index];
 			}
-			timer.switch_category("communication");
-	
-			std::vector<answer> recv_answers = alltoall(num_packets_per_PE, answers, comm, grid_comm).extract_recv_buffer();
-			//std::vector<answer> recv_answers = comm.alltoallv(kamping::send_buf(answers), kamping::send_counts(num_packets_per_PE)).extract_recv_buffer();
-			timer.switch_category("local_work");
+
+			std::vector<answer> recv_answers = alltoall(timer, answers, num_packets_per_PE, comm, grid_comm, communication_mode);
+
 				//dann answers eingetragen
 			
 			for (std::int32_t i = 0; i < recv_answers.size(); i++)
@@ -183,6 +180,8 @@ class regular_pointer_doubling
 	
 	
 	private:
+	int communication_mode;
+	
 	std::uint64_t num_local_vertices;
 	std::uint64_t final_node;
 	std::vector<std::uint64_t> s;
