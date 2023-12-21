@@ -650,7 +650,7 @@ class real_load_balance
 			std::cout << final_ranks[i] << " ";
 		std::cout << std::endl;*/
 		
-		test::regular_test(comm, s, final_ranks);
+		test::regular_test_ranks(comm, s, final_ranks);
 		
 	
 	}

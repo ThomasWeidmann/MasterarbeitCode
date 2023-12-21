@@ -202,7 +202,6 @@ class forest_irregular_ruling_set2 //this is for forest
 		while (any_PE_has_work(comm, work_left))
 		{
 			
-			timer.add_checkpoint("comm_iteration_" + std::to_string(iteration++));
 
 			/*
 			std::cout << rank << " in iteration " << iteration << " with following packages:\n";
@@ -213,7 +212,6 @@ class forest_irregular_ruling_set2 //this is for forest
 
 			
 			std::vector<packet> recv_buffer = comm.alltoallv(kamping::send_buf(out_buffer), kamping::send_counts(num_packets_per_PE)).extract_recv_buffer();
-			timer.add_checkpoint("work_iteration_" + std::to_string(iteration++));
 
 			std::fill(num_packets_per_PE.begin(), num_packets_per_PE.end(), 0);
 			
@@ -458,7 +456,7 @@ class forest_irregular_ruling_set2 //this is for forest
 			//std::cout << i + node_offset << " hat final rank " << recv_answers_buffer[packet_index].distance << "+" << del[i] << "=" << result_dist[i] << std::endl;
 		}
 		
-		timer.finalize(comm, "forest_irregular_ruling_set2");
+		//timer.finalize(comm, "forest_irregular_ruling_set2");
 	}
 	
 	

@@ -7,3 +7,10 @@ void calculate_send_displacements_and_reset_num_packets_per_PE(std::vector<std::
 		send_displacements[i] = send_displacements[i-1] + num_packets_per_PE[i-1];
 	std::fill(num_packets_per_PE.begin(), num_packets_per_PE.end(), 0);
 }
+
+
+bool is_pow_of_two(std::uint32_t p)
+{
+	return std::lround(std::pow(2, std::lround(std::log2(p)))) == p;
+	
+}

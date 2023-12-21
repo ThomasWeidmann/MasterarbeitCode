@@ -1,43 +1,59 @@
-//i will introduce three different communication modes
-//communication_mode = 0
-//this means all communication is direct but request and replies are optimized
-//communication_mode = 1
-//this menas request and replies are direct and optimized and the rest is grid communication
-//communication_mode = 2
-//this menas all communication is grid communication
 	
 	template<typename packet>
-	static std::vector<packet> alltoall(timer& timer, std::vector<packet>& send_buf, std::vector<std::int32_t>& send_counts, kamping::Communicator<>& comm, karam::mpi::GridCommunicator grid_comm, int communication_mode)
+	static std::vector<packet> alltoall(timer& timer, std::vector<packet>& send_buf, std::vector<std::int32_t>& send_counts, kamping::Communicator<>& comm, karam::mpi::GridCommunicator grid_comm, bool grid)
 	{
-		switch (communication_mode)
-		{
-			case 0:
-				return alltoall_normal(timer, send_buf, send_counts, comm);
-			case 1:
-				return alltoall_grid(timer, send_buf, send_counts, comm, grid_comm);
-			case 2:
-				return alltoall_grid(timer, send_buf, send_counts, comm, grid_comm);
-			default:
-				return std::vector<packet>();
-		}
+		if (grid)
+			return alltoall_grid(timer, send_buf, send_counts, comm, grid_comm);
+		else
+			return alltoall_normal(timer, send_buf, send_counts, comm);
 	}
 	
 	template<typename request, typename answer>
-	static std::vector<answer> request_reply(timer& timer, std::vector<request>& requests, std::vector<std::int32_t>& send_counts, std::function<answer(const request)> lambda, kamping::Communicator<>& comm, karam::mpi::GridCommunicator grid_comm, int communication_mode)
+	static std::vector<answer> request_reply(timer& timer, std::vector<request>& requests, std::vector<std::int32_t>& send_counts, std::function<answer(const request)> lambda, kamping::Communicator<>& comm, karam::mpi::GridCommunicator grid_comm, bool grid)
 	{
-		switch (communication_mode)
-		{
-			case 0:
-				return request_reply_normal<request,answer>(timer, requests, send_counts, lambda, comm);
-			case 1:
-				return request_reply_normal<request,answer>(timer, requests, send_counts, lambda, comm);
-			case 2:
-				return request_reply_grid<request,answer>(timer, requests, send_counts, lambda, comm, grid_comm);
-			default:
-				return std::vector<answer>();
-		}
+		if (grid)
+			return request_reply_grid<request,answer>(timer, requests, send_counts, lambda, comm, grid_comm);
+		else
+			return request_reply_normal<request,answer>(timer, requests, send_counts, lambda, comm);
 	}
-
+	
+	template<typename packet>
+	static std::vector<packet> allgatherv(timer& timer, std::vector<packet>& send_buf, kamping::Communicator<>& comm, karam::mpi::GridCommunicator grid_comm, bool grid)
+	{
+		if (grid)
+			return allgatherv_grid(timer, send_buf, comm, grid_comm);
+		else
+			return allgatherv_normal(timer, send_buf, comm);
+	}
+	
+	template<typename packet>
+	static std::vector<packet> allgatherv(timer& timer, packet send_buf, kamping::Communicator<>& comm, karam::mpi::GridCommunicator grid_comm, bool grid)
+	{
+		if (grid)
+			return allgatherv_grid(timer, std::vector<packet>(1,send_buf), comm, grid_comm);
+		else
+			return allgatherv_normal(timer, std::vector<packet>(1,send_buf), comm);
+	}
+	
+	
+	template<typename packet>
+	static std::vector<packet> allgatherv_grid(timer& timer, std::vector<packet> send_buf, kamping::Communicator<>& comm, karam::mpi::GridCommunicator grid_comm)
+	{
+		timer.switch_category("communication");
+		std::vector<packet> to_return = grid_comm.allgatherv(comm, send_buf);
+		timer.switch_category("local_work");
+		return to_return;
+	}
+	
+	template<typename packet>
+	static std::vector<packet> allgatherv_normal(timer& timer, std::vector<packet> send_buf, kamping::Communicator<>& comm)
+	{
+		timer.switch_category("communication");
+		std::vector<packet> to_return;
+		comm.allgatherv(kamping::send_buf(send_buf), kamping::recv_buf<kamping::resize_to_fit>(to_return));
+		timer.switch_category("local_work");
+		return to_return;
+	}
 
 	template<typename packet>
 	static std::vector<packet> alltoall_normal(timer& timer, std::vector<packet>& send_buf, std::vector<std::int32_t>& send_counts, kamping::Communicator<>& comm)

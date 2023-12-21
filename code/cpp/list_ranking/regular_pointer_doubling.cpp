@@ -6,23 +6,23 @@
 class regular_pointer_doubling
 {
 	struct node_request {
-		std::uint64_t node;
 		std::uint64_t mst;
 	};
 
 	struct answer {
-		std::uint64_t node;
 		std::int64_t r_of_mst;
 		std::uint64_t mst_of_mst;
 		bool passive_of_mst;
 	};
 	
+	
+	
 	public:
 	
 	//if this PE has final node, then final node is set to a valid value, otherweise it is -1
-	regular_pointer_doubling(std::vector<std::uint64_t>& successors, std::vector<std::int64_t>& ranks, std::uint64_t local_index_final_node, int communication_mode)
+	regular_pointer_doubling(std::vector<std::uint64_t>& successors, std::vector<std::int64_t>& ranks, std::uint64_t local_index_final_node, bool grid)
 	{
-		this->communication_mode = communication_mode;
+		this->grid = grid;
 		s = successors;
 		num_local_vertices = s.size();
 		q = s;
@@ -35,9 +35,9 @@ class regular_pointer_doubling
 	}
 	
 	
-	regular_pointer_doubling(std::vector<std::uint64_t>& successors, kamping::Communicator<>& comm, int communication_mode)
+	regular_pointer_doubling(std::vector<std::uint64_t>& successors, kamping::Communicator<>& comm, bool grid)
 	{
-		this->communication_mode = communication_mode;
+		this->grid = grid;
 		s = successors;
 		num_local_vertices = s.size();
 		q = s;
@@ -61,6 +61,7 @@ class regular_pointer_doubling
 		timer timer("start", categories, "local_work", "regular_pointer_doubling");
 		
 		timer.add_info(std::string("num_local_vertices"), std::to_string(num_local_vertices));
+		timer.add_info("grid", std::to_string(grid));
 
 		
 		size = comm.size();
@@ -108,52 +109,36 @@ class regular_pointer_doubling
 				{
 					std::int32_t targetPE = calculate_targetPE(q[local_index]);
 					std::int32_t packet_index = send_displacements[targetPE] + num_packets_per_PE[targetPE]++;
-					requests[packet_index].node = local_index + node_offset;
 					requests[packet_index].mst = q[local_index];
 				}
-				
 			}
-		
-			std::vector<node_request> recv_requests = alltoall(timer, requests, num_packets_per_PE, comm, grid_comm, communication_mode);
-
-			//dann answers gezählt
 			
-			answers.resize(recv_requests.size());
-			std::fill(num_packets_per_PE.begin(), num_packets_per_PE.end(), 0);
-			for (std::int32_t i = 0; i < recv_requests.size(); i++)
-			{
-				std::int32_t targetPE = calculate_targetPE(recv_requests[i].node);
-				num_packets_per_PE[targetPE]++;
-			}
-			//dann answers ausgefüllt
-			calculate_send_displacements_and_reset_num_packets_per_PE(send_displacements, num_packets_per_PE);
-			for (std::int32_t i = 0; i < recv_requests.size(); i++)
-			{
-				std::int32_t targetPE = calculate_targetPE(recv_requests[i].node);
-				std::int32_t packet_index = send_displacements[targetPE] + num_packets_per_PE[targetPE]++;
-				
-				std::int32_t local_index = recv_requests[i].mst - node_offset;
-				answers[packet_index].node = recv_requests[i].node;
-				answers[packet_index].r_of_mst = r[local_index];
-				answers[packet_index].mst_of_mst = q[local_index];
-				answers[packet_index].passive_of_mst = passive[local_index];
-			}
-
-			std::vector<answer> recv_answers = alltoall(timer, answers, num_packets_per_PE, comm, grid_comm, communication_mode);
+			std::function<answer(const node_request)> lambda = [&] (node_request request) { 
+				std::int32_t local_index = request.mst - node_offset;
+				answer answer;
+				answer.r_of_mst = r[local_index];
+				answer.mst_of_mst = q[local_index];
+				answer.passive_of_mst = passive[local_index];
+				return answer;
+			};
+			std::vector<answer> recv_answers = request_reply(timer, requests, num_packets_per_PE, lambda, comm, grid_comm, grid);
 
 				//dann answers eingetragen
-			
-			for (std::int32_t i = 0; i < recv_answers.size(); i++)
+			std::fill(num_packets_per_PE.begin(), num_packets_per_PE.end(), 0);
+			for (std::int32_t local_index = 0; local_index < num_local_vertices;local_index++)
 			{
-				std::int32_t local_index = recv_answers[i].node - node_offset;
+				if (!passive[local_index])
+				{
+					std::int32_t targetPE = calculate_targetPE(q[local_index]);
+					std::int32_t packet_index = send_displacements[targetPE] + num_packets_per_PE[targetPE]++;
 				
-				q[local_index] = recv_answers[i].mst_of_mst;
-				r[local_index] = r[local_index] + recv_answers[i].r_of_mst;
-				passive[local_index] = recv_answers[i].passive_of_mst;
-			}
-	
+					q[local_index] = recv_answers[packet_index].mst_of_mst;
+					r[local_index] = r[local_index] + recv_answers[packet_index].r_of_mst;
+					passive[local_index] = recv_answers[packet_index].passive_of_mst;
+				}
+			}	
 		}
-		//timer.finalize(comm, "regular_pointer_doubling");
+		timer.finalize(comm, "regular_pointer_doubling");
 
 		/*
 		std::cout << rank << " mit rank array:\n";
@@ -180,7 +165,7 @@ class regular_pointer_doubling
 	
 	
 	private:
-	int communication_mode;
+	bool grid;
 	
 	std::uint64_t num_local_vertices;
 	std::uint64_t final_node;

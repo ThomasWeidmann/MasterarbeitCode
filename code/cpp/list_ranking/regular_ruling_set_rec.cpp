@@ -30,7 +30,7 @@ class regular_ruling_set_rec
 	
 	public:
 	
-	regular_ruling_set_rec(std::vector<std::uint64_t>& successors, std::vector<std::int64_t>& ranks, std::uint64_t local_index_final, std::int32_t dist_rulers, int communication_mode)
+	regular_ruling_set_rec(std::vector<std::uint64_t>& successors, std::vector<std::int64_t>& ranks, std::uint64_t local_index_final, std::int32_t dist_rulers, int iterations, bool grid)
 	{
 		s = successors;
 		r = ranks;
@@ -38,7 +38,8 @@ class regular_ruling_set_rec
 		num_local_rulers = num_local_vertices / dist_rulers;
 		distance_rulers = dist_rulers;
 		local_index_final_node = local_index_final;
-		this->communication_mode = communication_mode;
+		this->iterations = iterations;
+		this->grid = grid;
 	}
 	
 	
@@ -50,7 +51,8 @@ class regular_ruling_set_rec
 		
 		timer.add_info("num_local_vertices", std::to_string(num_local_vertices));
 		timer.add_info("dist_rulers", std::to_string(distance_rulers));
-		
+		timer.add_info("iterations", std::to_string(iterations));
+		timer.add_info("grid", std::to_string(grid));
 		
 		
 		size = comm.size();
@@ -249,8 +251,21 @@ class regular_ruling_set_rec
 	
 		timer.add_checkpoint("rekursion");
 
-		regular_pointer_doubling algorithm(s_rec, r_rec, local_index_final_node_rec, communication_mode);
-		std::vector<std::int64_t> result = algorithm.start(comm, grid_comm);
+		//regular_pointer_doubling algorithm(s_rec, r_rec, local_index_final_node_rec, communication_mode);
+		//std::vector<std::int64_t> result = algorithm.start(comm, grid_comm);
+		
+		std::vector<std::int64_t> result;
+		if (iterations == 1)
+		{
+			regular_pointer_doubling algorithm(s_rec, r_rec, local_index_final_node_rec, grid);
+			result = algorithm.start(comm, grid_comm);
+		}
+		else
+		{
+			regular_ruling_set_rec algorithm(s_rec, r_rec, local_index_final_node_rec, distance_rulers, iterations-1, grid);
+			result = algorithm.start(comm, grid_comm);
+		}
+		
 		timer.add_checkpoint("finalen_ranks_berechnen");
 
 		for (std::int32_t local_index = 0; local_index < num_local_rulers; local_index++)
@@ -331,7 +346,7 @@ class regular_ruling_set_rec
 			node = node_map[node];
 		}
 		
-		//timer.finalize(comm);
+		timer.finalize(comm, "regular_ruling_set_rec");
 		
 		return result;
 	}
@@ -387,7 +402,7 @@ class regular_ruling_set_rec
 
 	
 	private: 
-	int communication_mode;
+	bool grid;
 	
 	std::vector<std::int64_t> r;
 	std::vector<std::uint64_t> s;
@@ -395,6 +410,7 @@ class regular_ruling_set_rec
 	std::uint64_t num_local_rulers;
 	std::uint64_t distance_rulers;
 	std::uint64_t local_index_final_node;
+	std::uint32_t iterations;
 	
 	std::uint64_t size;
 	std::uint64_t rank;

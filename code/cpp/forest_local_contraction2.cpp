@@ -1,4 +1,6 @@
 #include "list_ranking/irregular_pointer_doubling.cpp"
+#include "tree_rooting/forest_irregular_ruling_set2.cpp"
+
 
 //this algorithm compressed by compressing every local subtree to its local root, in contrairy to forest_local_contraction which compresses every local subtree to its leaves
 class forest_local_contraction2
@@ -275,17 +277,18 @@ class forest_local_contraction2
 		
 				//if (rank == 0) std::cout << "Instanzgröße von " << size * num_local_vertices << " auf " << prefix_sum_num_vertices_per_PE_reduced[size] * 100 / (size * num_local_vertices) << "% reduziert" << std::endl;
 
-		timer.add_checkpoint("irregular_pointer_doubling");
+		timer.add_checkpoint("tree_rooting");
 
 		
-		irregular_pointer_doubling algorithm(s_reduced, r_reduced, targetPEs_reduced, prefix_sum_num_vertices_per_PE_reduced);
-		std::vector<std::int64_t> ranks = algorithm.start(comm);
-		/*
-		std::cout << rank << " with ranks out of recursion :";
-		for (std::uint64_t i = 0; i < ranks.size(); i++)
-			std::cout << ranks[i] << " ";
-		std::cout << std::endl;
-		*/
+		std::vector<std::uint64_t> local_rulers(s_reduced.size());
+
+		forest_irregular_ruling_set2 algorithm(10);
+		algorithm.start(s_reduced, r_reduced, targetPEs_reduced, prefix_sum_num_vertices_per_PE_reduced, comm,local_rulers);
+		std::vector<std::int64_t> ranks = algorithm.result_dist;
+		
+		//irregular_pointer_doubling algorithm(s_reduced, r_reduced, targetPEs_reduced, prefix_sum_num_vertices_per_PE_reduced);
+		//std::vector<std::int64_t> ranks = algorithm.start(comm);
+		
 		timer.add_checkpoint("calculate_final_ranks");
 
 		
@@ -299,7 +302,6 @@ class forest_local_contraction2
 		
 		for (std::uint64_t i = 0; i < removed_nodes.size(); i++)
 		{
-			if (removed_nodes[i].i == 10) std::cout << "rank[10] = " << final_ranks[removed_nodes[i].source - node_offset] << " + " << removed_nodes[i].r << std::endl;
 			final_ranks[removed_nodes[i].i - node_offset] =  final_ranks[removed_nodes[i].source - node_offset] + removed_nodes[i].r;
 		}
 		/*
