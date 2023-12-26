@@ -37,7 +37,7 @@
 
 #include "communicator.cpp"
 //#include "karam/mpi/grid_alltoall.hpp"
-#include "list_ranking/example.cpp"
+//#include "list_ranking/example.cpp"
 #include "list_ranking/asynchron_ruling_set2.cpp"
 #include "list_ranking/grid_asynchron_ruling_set2.cpp"
 
@@ -139,19 +139,25 @@ int main(int argc, char* argv[]) {
 			
 			std::vector<std::uint64_t> s = generator::generate_regular_successor_vector(num_local_vertices, comm);
 			regular_ruling_set algorithm = regular_ruling_set(s, dist_rulers, num_iterations, grid);
-			std::vector<std::int64_t> d = algorithm.start(comm, s, grid_comm);
+			algorithm.start(s, comm, grid_comm);
+			std::vector<std::int64_t> d = algorithm.get_ranks();
 			test::regular_test_ranks(comm, s, d);
 
 		}
-		else if (ruling_set2.compare(argv[1]) == 0)
+		else if (ruling_set2.compare(algorithm_name) == 0)
 		{
-			std::int32_t num_local_vertices = atoi(argv[2]);
-			std::int32_t dist_rulers = atoi(argv[3]);
+			std::int64_t num_local_vertices = atoi(get_next_arg(argv));
+			std::int64_t dist_rulers = atoi(get_next_arg(argv));
+			std::uint32_t num_iterations = atoi(get_next_arg(argv));
+			
 			std::vector<std::uint64_t> s = generator::generate_regular_successor_vector(num_local_vertices, comm);
 			
 			
-			regular_ruling_set2 algorithm(s, dist_rulers, 1);
-			std::vector<std::int64_t> d = algorithm.start(comm);
+			regular_ruling_set2 algorithm(s, dist_rulers, num_iterations, grid);
+			std::vector<std::int64_t> d = algorithm.start(comm, grid_comm);
+			
+			
+			
 			
 			test::regular_test_ranks(comm, s, d);
 
@@ -186,14 +192,14 @@ int main(int argc, char* argv[]) {
 		}
 		else if (ruling_set2_rec.compare(argv[1]) == 0)
 		{
-			
+			/*
 			std::int32_t num_local_vertices = atoi(argv[2]);
 			std::int32_t dist_rulers = atoi(argv[3]);
 			std::vector<std::uint64_t> s = generator::generate_regular_successor_vector(num_local_vertices, comm);
 			regular_ruling_set2 algorithm(s, dist_rulers, 2);
 			std::vector<std::int64_t> d = algorithm.start(comm);
 			
-			test::regular_test_ranks(comm, s, d);
+			test::regular_test_ranks(comm, s, d);*/
 		}
 		else if (pointer_doubling.compare(argv[1]) == 0)
 		{
@@ -296,6 +302,7 @@ int main(int argc, char* argv[]) {
 		}
 		else if (asynchron.compare(argv[1]) == 0)
 		{
+			/*
 			std::uint64_t num_local_vertices = atoi(argv[2]);
 			std::int32_t dist_rulers = atoi(argv[3]);
 			std::vector<std::uint64_t> s = generator::generate_regular_successor_vector(num_local_vertices, comm);
@@ -304,7 +311,7 @@ int main(int argc, char* argv[]) {
 			
 			std::vector<std::int64_t> d = example.test(s, dist_rulers, comm);
 			
-			test::regular_test_ranks(comm, s, d);
+			test::regular_test_ranks(comm, s, d);*/
 		}
 		else if (asynchron2.compare(argv[1]) == 0)
 		{

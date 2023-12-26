@@ -97,14 +97,7 @@ class regular_ruling_set_rec
 			}
 		}
 		
-		timer.switch_category("communication");
-
-		auto recv = comm.alltoallv(kamping::send_buf(out_buffer), kamping::send_counts(num_packets_per_PE));
-	
-		timer.switch_category("local_work");
-
-	
-		std::vector<packet_rec> recv_buffer = recv.extract_recv_buffer();
+		std::vector<packet_rec> recv_buffer = alltoall(timer, out_buffer, num_packets_per_PE, comm, grid_comm, grid);
 
 		std::vector<std::int64_t> mst(num_local_vertices, -1); //previous ruler
 		std::vector<std::int64_t> del(num_local_vertices, -1); //dist to previous ruler
@@ -114,9 +107,10 @@ class regular_ruling_set_rec
 		timer.add_checkpoint("pakete_verfolgen");
 
 	
-		std::int32_t max_iteration = distance_rulers * std::log(num_global_vertices);
-		std::int32_t iteration=0;
-		while (iteration++ < max_iteration || any_PE_has_work(comm, more_nodes_reached))
+		std::int64_t max_iteration = distance_rulers * std::log(num_global_vertices / distance_rulers);
+		std::int64_t iteration=0;
+		
+		while (iteration++ < max_iteration  || any_PE_has_work(comm, grid_comm, timer, more_nodes_reached, grid))
 		{
 			//if (rank ==  0) std::cout << "iteration " << iteration << " mit " << num_local_vertices - num_reached_nodes << std::endl;
 			
@@ -164,12 +158,7 @@ class regular_ruling_set_rec
 					out_buffer[packet_index].ruler_distance = packet.ruler_distance + r[local_index];
 				}
 			}
-			timer.switch_category("communication");
-
-			auto recv = comm.alltoallv(kamping::send_buf(out_buffer), kamping::send_counts(num_packets_per_PE));
-
-			recv_buffer = recv.extract_recv_buffer(); //wird der alte recv_buffer eigentlich gefreed?
-			timer.switch_category("local_work");
+			recv_buffer = alltoall(timer, out_buffer, num_packets_per_PE, comm, grid_comm, grid);
 
 		}
 		
@@ -178,16 +167,12 @@ class regular_ruling_set_rec
 
 		
 		//wir müssen noch die insgesamte distanz der anfangsknoten vor dem unreached ruler zählen und dann die gesamtzahl als rank setzten
-		/*	std::cout << rank << ":";
-		for (int local_index = 0; local_index < num_local_rulers; local_index++)
-			std::cout << local_index + node_offset << ": mst=" << mst[local_index] << ", del=" << del[local_index] << std::endl;
-*/
 		
 		std::int64_t sum_r = 0;
 		for (std::uint64_t local_index = 0; local_index < num_local_rulers; local_index++)
 			sum_r += r[local_index];
 		
-		std::int32_t local_partial_distance = 0;
+		std::int64_t local_partial_distance = 0;
 		for (std::int32_t local_index = num_local_rulers; local_index < num_local_vertices; local_index++)
 		{
 			sum_r += r[local_index];
@@ -195,25 +180,15 @@ class regular_ruling_set_rec
 				local_partial_distance += r[local_index];
 		}
 		
-		std::vector<std::int32_t> send_partial_distance(1, local_partial_distance);
-		std::vector<std::int32_t> recv_partial_distance;
-		
-		timer.switch_category("communication");
 
-		comm.allgather(kamping::send_buf(send_partial_distance), kamping::recv_buf<kamping::resize_to_fit>(recv_partial_distance));
-		timer.switch_category("local_work");
-		
+		std::vector<std::int64_t> recv_partial_distance = allgatherv(timer, local_partial_distance, comm, grid_comm, grid);
+
 		
 		std::int32_t sum = 0; 
 		for (std::int32_t i = 0; i < size; i++)
 			sum+= recv_partial_distance[i];
 	
-		std::vector<std::int32_t> send_partial_sum_r(1, sum_r);
-		std::vector<std::int32_t> recv_partial_sum_r;
-		timer.switch_category("communication");
-
-		comm.allgather(kamping::send_buf(send_partial_sum_r), kamping::recv_buf<kamping::resize_to_fit>(recv_partial_sum_r));
-		timer.switch_category("local_work");
+		std::vector<std::int64_t> recv_partial_sum_r = allgatherv(timer, sum_r, comm, grid_comm, grid);
 
 		sum_r = 0; 
 		for (std::int32_t i = 0; i < size; i++)
@@ -274,11 +249,7 @@ class regular_ruling_set_rec
 		}
 	
 	
-		std::vector<std::int64_t> all_results;
-		timer.switch_category("communication");
-
-		comm.allgather(kamping::send_buf(result), kamping::recv_buf<kamping::resize_to_fit>(all_results));
-		timer.switch_category("local_work");
+		std::vector<std::int64_t> all_results = allgatherv(timer, result, comm, grid_comm, grid);
 
 
 		//jetzt müssen werte wiederhergestellt werden
@@ -309,11 +280,8 @@ class regular_ruling_set_rec
 		}
 		
 		local_unreached_nodes.resize(local_unreached_nodes_index);
-		std::vector<node_packet_rec> global_unreached_nodes; //das hier sind jetzt genau die nodes, die vor dem ersten ruler sind
-		timer.switch_category("communication");
-		
-		comm.allgatherv(kamping::send_buf(local_unreached_nodes), kamping::recv_buf<kamping::resize_to_fit>(global_unreached_nodes));
-		timer.switch_category("local_work");
+		std::vector<node_packet_rec> global_unreached_nodes = allgatherv(timer, local_unreached_nodes, comm, grid_comm, grid);
+
 		
 		std::unordered_map<std::int32_t, std::int32_t> node_map; //node_map[source] = destination, für jeden unreached node (source,destination)
 		std::unordered_map<std::int32_t, std::int32_t> has_pred_map; //has_pred_map[source] = true, if any node source has any pred
@@ -346,7 +314,7 @@ class regular_ruling_set_rec
 			node = node_map[node];
 		}
 		
-		timer.finalize(comm, "regular_ruling_set_rec");
+		timer.finalize(comm, "regular_ruling_set_rec_" + std::to_string(iterations) + "iterations");
 		
 		return result;
 	}
@@ -357,18 +325,7 @@ class regular_ruling_set_rec
 		return is_ruler(global_index - targetPE * num_local_vertices);
 	}
 	
-	bool any_PE_has_work(kamping::Communicator<>& comm, bool this_PE_has_work)
-	{
-		std::int32_t work = this_PE_has_work;
-		std::vector<std::int32_t> send(1,work);
-		std::vector<std::int32_t> recv;
-		comm.allgather(kamping::send_buf(send), kamping::recv_buf<kamping::resize_to_fit>(recv));
-		
-		for (std::int32_t i = 0; i < size; i++)
-			work += recv[i];
-		return work > 0;
-	}
-	
+
 	bool is_final(std::uint64_t local_index)
 	{
 		return local_index + node_offset == s[local_index];

@@ -14,18 +14,42 @@ class irregular_ruling_set2
 
 	
 	public:
-	
 	irregular_ruling_set2(std::vector<std::uint64_t>& s, std::vector<std::int64_t> r, std::vector<std::uint32_t> targetPEs, std::uint64_t dist_rulers, std::vector<std::uint64_t> prefix_sum_num_vertices_per_PE)
+	{
+				std::cout << "deprecated constructor!" << std::endl;
+
+		this->s = s;
+		this->dist_rulers = dist_rulers;
+		this->r = r;
+		this->targetPEs = targetPEs;
+		this->prefix_sum_num_vertices_per_PE = prefix_sum_num_vertices_per_PE;
+		this->grid = false;
+		this->num_iterations = 1;
+
+	}
+	
+	
+	
+	irregular_ruling_set2(std::vector<std::uint64_t>& s, std::vector<std::int64_t> r, std::vector<std::uint32_t> targetPEs, std::uint64_t dist_rulers, std::vector<std::uint64_t> prefix_sum_num_vertices_per_PE, std::uint32_t num_iterations, bool grid)
 	{
 		this->s = s;
 		this->dist_rulers = dist_rulers;
 		this->r = r;
 		this->targetPEs = targetPEs;
 		this->prefix_sum_num_vertices_per_PE = prefix_sum_num_vertices_per_PE;
+		this->grid = grid;
+		this->num_iterations = num_iterations;
+
 	}
 	
-	
 	std::vector<std::int64_t> start(kamping::Communicator<>& comm)
+	{
+		std::cout << "deprecated function!" << std::endl;
+		karam::mpi::GridCommunicator grid_comm;
+		return start(comm, grid_comm);
+	}
+	
+	std::vector<std::int64_t> start(kamping::Communicator<>& comm, karam::mpi::GridCommunicator& grid_comm)
 	{
 		
 		
@@ -42,6 +66,8 @@ class irregular_ruling_set2
 		
 		timer.add_info(std::string("dist_rulers"), std::to_string(dist_rulers));
 		timer.add_info(std::string("num_local_vertices"), std::to_string(num_local_vertices), true);
+		timer.add_info("grid", std::to_string(grid));
+
 		
 
 		std::vector<std::int32_t> num_packets_per_PE(size,0);
@@ -97,11 +123,9 @@ class irregular_ruling_set2
 			for (packet& packet: out_buffer)
 				std::cout << "(" << packet.ruler_source << "," << packet.destination << "," << packet.distance << "),";
 			std::cout << std::endl;*/
+			std::vector<packet> recv_buffer = alltoall(timer, out_buffer, num_packets_per_PE, comm, grid_comm, grid);
+
 			
-			
-			timer.switch_category("communication");
-			std::vector<packet> recv_buffer = comm.alltoallv(kamping::send_buf(out_buffer), kamping::send_counts(num_packets_per_PE)).extract_recv_buffer();
-			timer.switch_category("local_work");
 			std::fill(num_packets_per_PE.begin(), num_packets_per_PE.end(), 0);
 			
 			
@@ -191,28 +215,15 @@ class irregular_ruling_set2
 				
 			}
 			
-			/*
-			//count how many nodes reached
-			std::uint64_t num_nodes_reached = 0;
-			for (std::uint64_t i = 0; i < num_local_vertices; i++)
-				if (is_reached(i))
-					num_nodes_reached++;
-				
-			if (rank == 0)  std::cout << "iteration " << iteration << " with left " << num_local_vertices - num_nodes_reached << std::endl;
-			*/
+			
 		}
 		
-		/*
-		for (int i = 0; i < num_local_vertices; i++)
-			std::cout << i + node_offset << " hat von ruler " << mst[i] << " die distanz " << del[i] << ", " << is_ruler(i) << std::endl;
-		*/
+		
 		timer.add_checkpoint("rekursion_vorbereiten");
 
 		//now just the global starting node is unreached, this node is also always a ruler
-		std::vector<std::uint64_t> num_local_rulers_per_PE;
-		timer.switch_category("communication");
-		comm.allgather(kamping::send_buf(local_rulers.size()), kamping::recv_buf<kamping::resize_to_fit>(num_local_rulers_per_PE));
-		timer.switch_category("local_work");
+		std::vector<std::uint64_t> num_local_rulers_per_PE = allgatherv(timer, local_rulers.size(), comm, grid_comm, grid);
+
 		std::vector<std::uint64_t> prefix_sum_num_rulers_per_PE(size + 1,0);
 		for (std::uint32_t i = 1; i < size + 1; i++)
 		{
@@ -231,23 +242,7 @@ class irregular_ruling_set2
 		for (std::uint64_t i = 0; i < local_rulers.size(); i++)
 		{
 			map_ruler_to_its_index[local_rulers[i]] = i;
-			/*
-			std::uint64_t target_node = mst[local_rulers[i]];
 			
-			
-			std::uint64_t lower_bound_targetPE = 0;
-			std::uint64_t upper_bound_targetPE = size;
-			
-			while (upper_bound_targetPE - lower_bound_targetPE > 1)
-			{
-				std::uint64_t middle = (lower_bound_targetPE + upper_bound_targetPE) / 2;
-				if (target_node < prefix_sum_num_vertices_per_PE[middle])
-					upper_bound_targetPE = middle;
-				else
-					lower_bound_targetPE = middle;
-			}
-			
-			std::int32_t targetPE = lower_bound_targetPE;*/
 			std::int32_t targetPE = mst_PE[local_rulers[i]];
 			targetPEs_rec[i] = targetPE;
 			num_packets_per_PE[targetPE]++;
@@ -262,21 +257,9 @@ class irregular_ruling_set2
 			requests[packet_index] = mst[local_rulers[i]];
 		}
 		
-		timer.switch_category("communication");
-		auto recv = comm.alltoallv(kamping::send_buf(requests), kamping::send_counts(num_packets_per_PE));
-		timer.switch_category("local_work");
-
-		std::vector<std::uint64_t> recv_requests = recv.extract_recv_buffer();
+		std::function<std::uint64_t(const std::uint64_t)> lambda = [&] (std::uint64_t request) { return map_ruler_to_its_index[request-node_offset] + prefix_sum_num_rulers_per_PE[rank];};
+		std::vector<std::uint64_t> recv_answers = request_reply(timer, requests, num_packets_per_PE, lambda, comm, grid_comm, grid);
 		
-		
-		//answers können inplace in requests eingetragen werden
-		for (std::uint64_t i = 0; i < recv_requests.size(); i++)
-		{
-			recv_requests[i] = map_ruler_to_its_index[recv_requests[i]-node_offset] + prefix_sum_num_rulers_per_PE[rank];
-		}
-		timer.switch_category("communication");
-		std::vector<std::uint64_t> recv_answers = comm.alltoallv(kamping::send_buf(recv_requests), kamping::send_counts(recv.extract_recv_counts())).extract_recv_buffer();
-		timer.switch_category("local_work");
 		std::fill(num_packets_per_PE.begin(), num_packets_per_PE.end(), 0);
 		for (std::uint64_t i = 0; i < local_rulers.size(); i++)
 		{
@@ -287,26 +270,22 @@ class irregular_ruling_set2
 		}
 		
 		timer.add_checkpoint("rekursion");
+		std::vector<std::int64_t> ranks;
+		if (num_iterations > 1)
+		{
+			irregular_ruling_set2 algorithm(s_rec, r_rec, targetPEs_rec, dist_rulers,  prefix_sum_num_rulers_per_PE, num_iterations - 1, grid);
+			ranks = algorithm.start(comm, grid_comm);	
+		}
+		else
+		{
+			irregular_pointer_doubling algorithm(s_rec, r_rec, targetPEs_rec, prefix_sum_num_rulers_per_PE);
+			ranks = algorithm.start(comm);	
+		}
 
-		irregular_pointer_doubling algorithm(s_rec, r_rec, targetPEs_rec, prefix_sum_num_rulers_per_PE);
-		std::vector<std::int64_t> ranks = algorithm.start(comm);
+		
 		timer.add_checkpoint("finalen_ranks_berechnen");
 		
-		/*
-		std::cout << "PE " << rank << " with s_rec:";
-		for (int i = 0; i < local_rulers.size(); i++)
-			std::cout << s_rec[i] << ",";
-		std::cout << std::endl;
-		std::cout << "PE " << rank << " with r_rec:";
-		for (int i = 0; i < local_rulers.size(); i++)
-			std::cout << r_rec[i] << ",";
-		std::cout << std::endl;
-		std::cout << "PE " << rank << " with targetPEs_rec:";
-		for (int i = 0; i < local_rulers.size(); i++)
-			std::cout << targetPEs_rec[i] << ",";
-		std::cout << std::endl;*/
 		
-		//pefix sum num rulers wurde ja umbenannt
 		
 		std::fill(num_packets_per_PE.begin(), num_packets_per_PE.end(), 0);
 		requests.resize(num_local_vertices);
@@ -323,19 +302,12 @@ class irregular_ruling_set2
 			requests[packet_index] = mst[i];
 		}
 		
-		timer.switch_category("communication");
-		auto recv2 = comm.alltoallv(kamping::send_buf(requests), kamping::send_counts(num_packets_per_PE));
-		timer.switch_category("local_work");
-		recv_requests = recv2.extract_recv_buffer();
-		num_packets_per_PE = recv2.extract_recv_counts();
-		for (std::uint64_t i = 0; i < recv_requests.size(); i++)
-		{
-			recv_requests[i] = ranks[map_ruler_to_its_index[recv_requests[i] - node_offset]];
-		}
+		std::function<std::uint64_t(const std::uint64_t)> lambda2 = [&] (std::uint64_t request) { return ranks[map_ruler_to_its_index[request - node_offset]];};
+		recv_answers = request_reply(timer, requests, num_packets_per_PE, lambda2, comm, grid_comm, grid);
+
 		
-		timer.switch_category("communication");
-		recv_answers = comm.alltoallv(kamping::send_buf(recv_requests), kamping::send_counts(num_packets_per_PE)).extract_recv_buffer();
-		timer.switch_category("local_work");
+		
+		
 		std::fill(num_packets_per_PE.begin(), num_packets_per_PE.end(), 0);
 		
 		for (std::uint64_t i = 0; i < num_local_vertices; i++)
@@ -428,6 +400,9 @@ class irregular_ruling_set2
 	
 	
 	private:
+	bool grid;
+	std::uint32_t num_iterations;
+
 	std::uint64_t node_offset;
 	std::uint64_t num_local_vertices;
 	std::uint64_t rank, size;

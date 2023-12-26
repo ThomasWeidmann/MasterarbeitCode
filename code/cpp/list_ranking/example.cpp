@@ -189,7 +189,7 @@ class example
 		std::vector<std::int64_t> ranks;
 		if (num_iterations == 2)
 		{
-			irregular_ruling_set2 algorithm(s_rec, r_rec, targetPEs_rec, dist_rulers,  prefix_sum_num_vertices_per_PE);
+			irregular_ruling_set2 algorithm(s_rec, r_rec, targetPEs_rec, dist_rulers,  prefix_sum_num_vertices_per_PE, false);
 			ranks = algorithm.start(comm);	
 		}
 		else

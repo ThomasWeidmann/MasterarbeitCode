@@ -1,3 +1,4 @@
+#pragma once
 	
 	template<typename packet>
 	static std::vector<packet> alltoall(timer& timer, std::vector<packet>& send_buf, std::vector<std::int32_t>& send_counts, kamping::Communicator<>& comm, karam::mpi::GridCommunicator grid_comm, bool grid)

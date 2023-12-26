@@ -16,15 +16,16 @@ class regular_ruling_set2
 	
 	public:
 	
-	regular_ruling_set2(std::vector<std::uint64_t>& s, std::uint64_t dist_rulers, std::uint32_t num_iterations)
+	regular_ruling_set2(std::vector<std::uint64_t>& s, std::uint64_t dist_rulers, std::uint32_t num_iterations, bool grid)
 	{
 		this->s = s;
 		this->dist_rulers = dist_rulers;
 		this->num_iterations = num_iterations;
+		this->grid = grid;
 	}
 	
 	
-	std::vector<std::int64_t> start(kamping::Communicator<>& comm)
+	std::vector<std::int64_t> start(kamping::Communicator<>& comm, karam::mpi::GridCommunicator& grid_comm)
 	{
 		rank = comm.rank();
 		size = comm.size();
@@ -37,6 +38,8 @@ class regular_ruling_set2
 		timer.add_info(std::string("dist_rulers"), std::to_string(dist_rulers));
 		timer.add_info(std::string("num_local_vertices"), std::to_string(num_local_vertices));
 		timer.add_info(std::string("iterations"), std::to_string(num_iterations));
+		timer.add_info("grid", std::to_string(grid));
+
 		
 		//man kann ja wieder die ersten n/dist vielen nodes als ruler setzten. den ruler index speichern. wenn eine packet iteration durch ist, werden erreichte ruler gezählt und genau so viele neue ruler gemacht, in dem rulerindex erhöhrt wird. Dadruch wird nur ein einziges mal extra iteriert
 		std::uint64_t out_buffer_size = num_local_vertices/dist_rulers;
@@ -102,11 +105,10 @@ class regular_ruling_set2
 				std::cout << "(" << packet.ruler_source << "," << packet.destination << "," << packet.distance << "),";
 			std::cout << std::endl;*/
 			//timer.add_checkpoint("iteration " + std::to_string(iteration));
+			std::vector<packet> recv_buffer = alltoall(timer, out_buffer, num_packets_per_PE, comm, grid_comm, grid);
 
 			
-			timer.switch_category("communication");
-			std::vector<packet> recv_buffer = comm.alltoallv(kamping::send_buf(out_buffer), kamping::send_counts(num_packets_per_PE)).extract_recv_buffer();
-			timer.switch_category("local_work");
+			
 			std::fill(num_packets_per_PE.begin(), num_packets_per_PE.end(), 0);
 			
 			
@@ -210,10 +212,12 @@ class regular_ruling_set2
 		timer.add_checkpoint("rekursion_vorbereiten");
 
 		//now just the global starting node is unreached, this node is also always a ruler
-		std::vector<std::uint64_t> num_local_vertices_per_PE;
-		timer.switch_category("communication");
-		comm.allgather(kamping::send_buf(local_rulers.size()), kamping::recv_buf<kamping::resize_to_fit>(num_local_vertices_per_PE));
-		timer.switch_category("local_work");
+		//std::vector<std::uint64_t> num_local_vertices_per_PE;
+		
+		std::vector<std::uint64_t> num_local_vertices_per_PE = allgatherv(timer, local_rulers.size(), comm, grid_comm, grid);
+
+		
+		
 		std::vector<std::uint64_t> prefix_sum_num_vertices_per_PE(size + 1,0);
 		for (std::uint32_t i = 1; i < size + 1; i++)
 		{
@@ -244,21 +248,10 @@ class regular_ruling_set2
 			requests[packet_index] = mst[local_rulers[i]];
 		}
 		
-		timer.switch_category("communication");
-		auto recv = comm.alltoallv(kamping::send_buf(requests), kamping::send_counts(num_packets_per_PE));
-		timer.switch_category("local_work");
-
-		std::vector<std::uint64_t> recv_requests = recv.extract_recv_buffer();
 		
+		std::function<std::uint64_t(const std::uint64_t)> lambda = [&] (std::uint64_t request) { return map_ruler_to_its_index[request-node_offset] + prefix_sum_num_vertices_per_PE[rank];};
+		std::vector<std::uint64_t> recv_answers = request_reply(timer, requests, num_packets_per_PE, lambda, comm, grid_comm, grid);
 		
-		//answers können inplace in requests eingetragen werden
-		for (std::uint64_t i = 0; i < recv_requests.size(); i++)
-		{
-			recv_requests[i] = map_ruler_to_its_index[recv_requests[i]-node_offset] + prefix_sum_num_vertices_per_PE[rank];
-		}
-		timer.switch_category("communication");
-		std::vector<std::uint64_t> recv_answers = comm.alltoallv(kamping::send_buf(recv_requests), kamping::send_counts(recv.extract_recv_counts())).extract_recv_buffer();
-		timer.switch_category("local_work");
 		std::fill(num_packets_per_PE.begin(), num_packets_per_PE.end(), 0);
 		for (std::uint64_t i = 0; i < local_rulers.size(); i++)
 		{
@@ -271,10 +264,10 @@ class regular_ruling_set2
 		timer.add_checkpoint("rekursion");
 		timer.switch_category("other");
 		std::vector<std::int64_t> ranks;
-		if (num_iterations == 2)
+		if (num_iterations > 1)
 		{
-			irregular_ruling_set2 algorithm(s_rec, r_rec, targetPEs_rec, dist_rulers,  prefix_sum_num_vertices_per_PE);
-			ranks = algorithm.start(comm);	
+			irregular_ruling_set2 algorithm(s_rec, r_rec, targetPEs_rec, dist_rulers,  prefix_sum_num_vertices_per_PE, num_iterations - 1, grid);
+			ranks = algorithm.start(comm, grid_comm);	
 		}
 		else
 		{
@@ -300,20 +293,10 @@ class regular_ruling_set2
 			std::uint64_t packet_index = send_displacements[targetPE] + num_packets_per_PE[targetPE]++;
 			requests[packet_index] = mst[i];
 		}
+	
+		std::function<std::uint64_t(const std::uint64_t)> lambda2 = [&] (std::uint64_t request) { return ranks[map_ruler_to_its_index[request - node_offset]];};
+		recv_answers = request_reply(timer, requests, num_packets_per_PE, lambda2, comm, grid_comm, grid);
 		
-		timer.switch_category("communication");
-		auto recv2 = comm.alltoallv(kamping::send_buf(requests), kamping::send_counts(num_packets_per_PE));
-		timer.switch_category("local_work");
-		recv_requests = recv2.extract_recv_buffer();
-		num_packets_per_PE = recv2.extract_recv_counts();
-		for (std::uint64_t i = 0; i < recv_requests.size(); i++)
-		{
-			recv_requests[i] = ranks[map_ruler_to_its_index[recv_requests[i] - node_offset]];
-		}
-		
-		timer.switch_category("communication");
-		recv_answers = comm.alltoallv(kamping::send_buf(recv_requests), kamping::send_counts(num_packets_per_PE)).extract_recv_buffer();
-		timer.switch_category("local_work");
 		std::fill(num_packets_per_PE.begin(), num_packets_per_PE.end(), 0);
 		
 		for (std::uint64_t i = 0; i < num_local_vertices; i++)
@@ -323,7 +306,7 @@ class regular_ruling_set2
 			del[i] = size * num_local_vertices - 1 - (del[i] + recv_answers[packet_index]);
 		}
 		
-		std::string save_dir = "regular_ruling_set2";
+		std::string save_dir = "regular_ruling_set2_" + std::to_string(dist_rulers);
 		if (num_iterations == 2)
 			save_dir = "regular_ruling_set2_rec";
 		timer.finalize(comm, save_dir);
@@ -416,7 +399,7 @@ class regular_ruling_set2
 	std::uint64_t num_local_vertices;
 	std::uint64_t rank, size;
 	std::vector<std::uint64_t> s; //s einfach immer übergeben, sonst wird da viel zu viel rumkpiert
-	
+	bool grid;
 	std::uint64_t dist_rulers;
 	std::uint32_t num_iterations;
 };

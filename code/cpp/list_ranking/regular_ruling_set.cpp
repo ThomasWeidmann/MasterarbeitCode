@@ -15,7 +15,7 @@
 here every PE must have the same number of nodes aka the length of successors is the same
 also dist_rulers >= 3
 */
-class regular_ruling_set
+class regular_ruling_set : public list_ranking
 {
 	struct packet {
 		std::int64_t ruler_source;
@@ -40,7 +40,7 @@ class regular_ruling_set
 	}
 	
 	
-	std::vector<std::int64_t> start(kamping::Communicator<>& comm, std::vector<std::uint64_t>& successors, karam::mpi::GridCommunicator grid_comm)
+	void start(std::vector<std::uint64_t>& successors, kamping::Communicator<>& comm, karam::mpi::GridCommunicator& grid_comm)
 	{
 		
 		std::vector<std::string> categories = {"local_work", "communication", "other"};
@@ -104,7 +104,7 @@ class regular_ruling_set
 		std::int64_t max_iteration = distance_rulers * std::log(num_global_vertices / distance_rulers);
 		std::int64_t iteration=0;
 		
-		while (iteration++ < max_iteration  || any_PE_has_work(comm, more_nodes_reached))
+		while (iteration++ < max_iteration  || any_PE_has_work(comm, grid_comm, timer, more_nodes_reached, grid))
 		{	
 			std::fill(num_packets_per_PE.begin(), num_packets_per_PE.end(), 0);
 			more_nodes_reached = false;
@@ -184,7 +184,7 @@ class regular_ruling_set
 	
 		timer.add_checkpoint("rekursion");
 		timer.switch_category("other");
-		std::vector<std::int64_t> result;
+		//std::vector<std::int64_t> result;
 		if (num_iterations == 1)
 		{
 			regular_pointer_doubling algorithm(s_rec, r_rec, local_index_final_node, grid);
@@ -233,15 +233,8 @@ class regular_ruling_set
 		}
 		
 		local_unreached_nodes.resize(local_unreached_nodes_index);
-		//std::vector<node_packet> global_unreached_nodes; //das hier sind jetzt genau die nodes, die vor dem ersten ruler sind
-		//timer.switch_category("communication");
-		
+
 		std::vector<node_packet> global_unreached_nodes = allgatherv(timer, local_unreached_nodes, comm, grid_comm, grid);
-
-
-
-		//comm.allgatherv(kamping::send_buf(local_unreached_nodes), kamping::recv_buf<kamping::resize_to_fit>(global_unreached_nodes));
-		//timer.switch_category("local_work");
 
 		std::unordered_map<std::int64_t, std::int64_t> node_map; //node_map[source] = destination, für jeden unreached node (source,destination)
 		std::unordered_map<std::int64_t, std::int64_t> has_pred_map; //has_pred_map[source] = true, if any node source has any pred
@@ -283,9 +276,15 @@ class regular_ruling_set
 			std::cout << result[i] << " ";
 		std::cout <<std::endl;
 */
-		return result;
+		//return result;
 		
 	}
+	
+	std::vector<std::int64_t> get_ranks()
+	{
+		return result;
+	}
+	
 	
 	bool is_global_ruler(std::int64_t global_index)
 	{
@@ -293,18 +292,7 @@ class regular_ruling_set
 		return is_ruler(global_index - targetPE * num_local_vertices);
 	}
 	
-	//ich habe die vermutung dass allgather kaputt ist...
-	bool any_PE_has_work(kamping::Communicator<>& comm, bool this_PE_has_work)
-	{
-		std::int32_t work = this_PE_has_work;
-		std::vector<std::int32_t> send(1,work);
-		std::vector<std::int32_t> recv;
-		comm.allgather(kamping::send_buf(send), kamping::recv_buf<kamping::resize_to_fit>(recv));
-		
-		for (std::int32_t i = 0; i < size; i++)
-			work += recv[i];
-		return work > 0;
-	}
+	
 
 	
 	bool is_final(std::int64_t local_index)
@@ -353,5 +341,5 @@ class regular_ruling_set
 	std::int64_t num_global_vertices;
 	std::int64_t node_offset;
 	
-	
+	std::vector<std::int64_t> result;
 };
