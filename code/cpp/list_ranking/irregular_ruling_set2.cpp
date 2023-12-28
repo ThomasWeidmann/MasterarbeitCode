@@ -271,15 +271,55 @@ class irregular_ruling_set2
 		
 		timer.add_checkpoint("rekursion");
 		std::vector<std::int64_t> ranks;
+		
+		std::uint64_t n = prefix_sum_num_vertices_per_PE[size];
+		std::uint64_t n_reduced = prefix_sum_num_rulers_per_PE[size];
+		if (rank == 0) std::cout << n_reduced / size << " nodes per PE " << std::endl;
 		if (num_iterations > 1)
 		{
-			irregular_ruling_set2 algorithm(s_rec, r_rec, targetPEs_rec, dist_rulers,  prefix_sum_num_rulers_per_PE, num_iterations - 1, grid);
-			ranks = algorithm.start(comm, grid_comm);	
+			double c_direct = 0.78703;
+			double c_grid = 0.20366;
+
+			if (grid)
+			{
+				double wurzel_n_durch_p34 = std::sqrt(n_reduced) /std::pow(size, 0.75);
+				
+				double new_dist_rulers = c_grid * wurzel_n_durch_p34 * std::log(c_grid * wurzel_n_durch_p34)+1;
+			
+				irregular_ruling_set2 algorithm(s_rec, r_rec, targetPEs_rec, new_dist_rulers,  prefix_sum_num_rulers_per_PE, num_iterations - 1, grid);
+				ranks = algorithm.start(comm, grid_comm);	
+			}
+			else
+			{
+
+				double wurzel_n_durch_p = std::sqrt(n_reduced)/size;
+
+				double new_dist_rulers = c_direct * wurzel_n_durch_p * std::log(c_direct * wurzel_n_durch_p)+1;
+				irregular_ruling_set2 algorithm(s_rec, r_rec, targetPEs_rec, new_dist_rulers,  prefix_sum_num_rulers_per_PE, num_iterations - 1, grid);
+				ranks = algorithm.start(comm, grid_comm);	
+					
+			}
+			
+			
+			/*
+			double wurzel_n_durch_p = std::sqrt(prefix_sum_num_vertices_per_PE[size]) / size;
+			
+			double e = 2.718281828459045235;
+			double c = std::pow(e,lambertw(dist_rulers)) /  wurzel_n_durch_p;			
+			if (rank == 0 ) std::cout << "############################################### c = " << c << std::endl;
+			wurzel_n_durch_p = std::sqrt(prefix_sum_num_rulers_per_PE[size])/size;
+
+			double new_dist_rulers = c * wurzel_n_durch_p * std::log(c * wurzel_n_durch_p);
+			
+			if (rank == 0) std::cout << "############################################### new_dist_rulers " << new_dist_rulers << std::endl;
+			irregular_ruling_set2 algorithm(s_rec, r_rec, targetPEs_rec, new_dist_rulers,  prefix_sum_num_rulers_per_PE, num_iterations - 1, grid);
+			ranks = algorithm.start(comm, grid_comm);	*/
 		}
 		else
 		{
-			irregular_pointer_doubling algorithm(s_rec, r_rec, targetPEs_rec, prefix_sum_num_rulers_per_PE);
-			ranks = algorithm.start(comm);	
+			irregular_pointer_doubling algorithm(s_rec, r_rec, targetPEs_rec, prefix_sum_num_rulers_per_PE, grid);
+			ranks = algorithm.start(comm, grid_comm);	
+
 		}
 
 		
@@ -317,7 +357,7 @@ class irregular_ruling_set2
 			del[i] = prefix_sum_num_vertices_per_PE[size] - 1 - (del[i] + recv_answers[packet_index]);
 		}
 		
-		timer.finalize(comm, "irregular_ruling_set2");
+		//timer.finalize(comm, "irregular_ruling_set2");
 
 
 	

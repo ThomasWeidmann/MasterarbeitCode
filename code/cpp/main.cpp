@@ -146,14 +146,17 @@ int main(int argc, char* argv[]) {
 		}
 		else if (ruling_set2.compare(algorithm_name) == 0)
 		{
+			
 			std::int64_t num_local_vertices = atoi(get_next_arg(argv));
-			std::int64_t dist_rulers = atoi(get_next_arg(argv));
-			std::uint32_t num_iterations = atoi(get_next_arg(argv));
+			//std::int64_t dist_rulers = atoi(get_next_arg(argv));
+			//std::uint32_t num_iterations = atoi(get_next_arg(argv));
+			
+			
 			
 			std::vector<std::uint64_t> s = generator::generate_regular_successor_vector(num_local_vertices, comm);
 			
 			
-			regular_ruling_set2 algorithm(s, dist_rulers, num_iterations, grid);
+			regular_ruling_set2 algorithm(s, grid, comm);
 			std::vector<std::int64_t> d = algorithm.start(comm, grid_comm);
 			
 			
@@ -339,6 +342,40 @@ int main(int argc, char* argv[]) {
 		}
 		else
 		{		
+			
+			grid = true;
+			
+			std::int64_t num_local_vertices = 1000000;
+			
+			std::vector<std::uint64_t> s = generator::generate_regular_successor_vector(num_local_vertices, comm);
+			
+			int num_runs = 1;
+			
+			std::uint32_t num_iterations = 1;
+			
+			for (int num_iterations = 1; num_iterations < 5;  num_iterations++)
+			{
+				for (int dist_rulers = 50; dist_rulers <= 200; dist_rulers += 10)
+				{
+					for (int runs = 0; runs < num_runs; runs++)
+					{
+						regular_ruling_set2 algorithm(s, dist_rulers, num_iterations, grid);
+						std::vector<std::int64_t> d = algorithm.start(comm, grid_comm);
+					}
+				}
+				
+			}
+			
+			//regular_ruling_set2 algorithm(s, 50, 3, grid);
+			//std::vector<std::int64_t> d = algorithm.start(comm, grid_comm);
+			
+		
+			
+			
+			
+			
+			
+	
 	/*
 			std::uint64_t num_local_vertices = atoi(argv[2]);
 			std::int32_t dist_rulers = atoi(argv[3]);
@@ -348,7 +385,7 @@ int main(int argc, char* argv[]) {
 			
 			test::regular_test_ranks(comm, s, d);
 			//analyze_instances::analyze_regular_instance(s, comm);*/
-			error(std::string(argv[1]) + " is not a name of an algorithm or wrong parameters");
+			//error(std::string(argv[1]) + " is not a name of an algorithm or wrong parameters");
 			
 			
 		}

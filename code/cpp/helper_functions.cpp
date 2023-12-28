@@ -26,3 +26,34 @@ bool any_PE_has_work(kamping::Communicator<>& comm, karam::mpi::GridCommunicator
 		work += work_vec[i];
 	return work > 0;
 }
+
+//input > 1
+
+double lambertw(double input, int iterations)
+{
+	double lower_bound = 1;
+	double upper_bound = input;
+	
+	for (int i = 0; i < iterations; i++)
+	{
+		double middle = (lower_bound + upper_bound) / 2;
+		double e = 2.718281828459045235;
+		double f_of_middle = middle * std::pow(e, middle);
+		
+		if (f_of_middle > input)
+		{
+			upper_bound = middle;
+		}
+		else
+		{
+			lower_bound = middle;
+		}	
+	}
+	
+	return lower_bound;
+}
+
+double lambertw(double input)
+{
+	return lambertw(input, 30);
+}

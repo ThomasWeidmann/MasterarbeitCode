@@ -11,10 +11,35 @@ class regular_ruling_set2
 		std::uint32_t distance;
 	};
 
+	double c_direct = 0.78703;
+	int num_iterations_direct = 3;
 	
+	double c_grid = 0.20366;
+	int num_iterations_grid = 3;
 
 	
 	public:
+	
+	
+	regular_ruling_set2(std::vector<std::uint64_t>& s, bool grid, kamping::Communicator<>& comm)
+	{	
+		this->s = s;
+		this->grid = grid;
+		std::uint64_t n = s.size() * comm.size();
+		if (grid)
+		{
+			double wurzel_n_durch_p34 = std::sqrt(n)/std::pow(comm.size(), 0.75);
+			this->dist_rulers = c_grid * wurzel_n_durch_p34 * std::log(c_grid * wurzel_n_durch_p34) + 1;
+			this->num_iterations = num_iterations_grid;
+		}
+		else
+		{
+			double wurzel_n_durch_p = std::sqrt(n) / comm.size();
+			this->dist_rulers = c_direct * wurzel_n_durch_p * std::log(c_direct * wurzel_n_durch_p) + 1;
+			this->num_iterations = num_iterations_direct;
+		}
+	}
+	
 	
 	regular_ruling_set2(std::vector<std::uint64_t>& s, std::uint64_t dist_rulers, std::uint32_t num_iterations, bool grid)
 	{
@@ -44,6 +69,7 @@ class regular_ruling_set2
 		//man kann ja wieder die ersten n/dist vielen nodes als ruler setzten. den ruler index speichern. wenn eine packet iteration durch ist, werden erreichte ruler gezählt und genau so viele neue ruler gemacht, in dem rulerindex erhöhrt wird. Dadruch wird nur ein einziges mal extra iteriert
 		std::uint64_t out_buffer_size = num_local_vertices/dist_rulers;
 		std::vector<packet> out_buffer(out_buffer_size);
+		
 		
 		/*
 		std::cout << rank << " mit successor array:\n";
@@ -97,8 +123,11 @@ class regular_ruling_set2
 		
 		timer.add_checkpoint("pakete_verfolgen");
 
+
+
 		for (std::uint64_t iteration = 0; iteration < dist_rulers + 3; iteration++)
 		{
+			
 			/*
 			std::cout << rank << " in iteration " << iteration << " with following packages:\n";
 			for (packet& packet: out_buffer)
@@ -208,6 +237,7 @@ class regular_ruling_set2
 			if (rank == 0)  std::cout << "iteration " << iteration << " with left " << num_local_vertices - num_nodes_reached << std::endl;
 			*/
 		}
+
 		
 		timer.add_checkpoint("rekursion_vorbereiten");
 
@@ -261,21 +291,43 @@ class regular_ruling_set2
 			r_rec[i] = del[local_rulers[i]];
 		}
 		
+
+		
 		timer.add_checkpoint("rekursion");
 		timer.switch_category("other");
 		std::vector<std::int64_t> ranks;
+		
+		std::uint64_t n = num_local_vertices * size;
+		std::uint64_t n_reduced = prefix_sum_num_vertices_per_PE[size];
+		if (rank == 0) std::cout << n_reduced / size << " nodes per PE " << std::endl;
 		if (num_iterations > 1)
 		{
-			irregular_ruling_set2 algorithm(s_rec, r_rec, targetPEs_rec, dist_rulers,  prefix_sum_num_vertices_per_PE, num_iterations - 1, grid);
-			ranks = algorithm.start(comm, grid_comm);	
+			if (grid)
+			{
+				double wurzel_n_durch_p34 = std::sqrt(n_reduced)/std::pow(size, 0.75);
+				double new_dist_rulers = c_grid * wurzel_n_durch_p34 * std::log(c_grid * wurzel_n_durch_p34);
+			
+				irregular_ruling_set2 algorithm(s_rec, r_rec, targetPEs_rec, new_dist_rulers,  prefix_sum_num_vertices_per_PE, num_iterations - 1, grid);
+				ranks = algorithm.start(comm, grid_comm);	
+			}
+			else
+			{
+				double wurzel_n_durch_p = std::sqrt(n_reduced)/size;
+				double new_dist_rulers = c_direct * wurzel_n_durch_p * std::log(c_direct * wurzel_n_durch_p);
+				irregular_ruling_set2 algorithm(s_rec, r_rec, targetPEs_rec, new_dist_rulers,  prefix_sum_num_vertices_per_PE, num_iterations - 1, grid);
+				ranks = algorithm.start(comm, grid_comm);	
+			}
+			
 		}
 		else
 		{
-			irregular_pointer_doubling algorithm(s_rec, r_rec, targetPEs_rec, prefix_sum_num_vertices_per_PE);
-			ranks = algorithm.start(comm);	
+			irregular_pointer_doubling algorithm(s_rec, r_rec, targetPEs_rec, prefix_sum_num_vertices_per_PE, grid);
+			ranks = algorithm.start(comm, grid_comm);	
 		}
 		timer.switch_category("local_work");
 		timer.add_checkpoint("finalen_ranks_berechnen");
+		
+
 
 		
 		//rank[i + node_offset] = rank[mst[i]] + del[i], and requests[i] = rank[mst[i]] is goal
@@ -306,9 +358,9 @@ class regular_ruling_set2
 			del[i] = size * num_local_vertices - 1 - (del[i] + recv_answers[packet_index]);
 		}
 		
-		std::string save_dir = "regular_ruling_set2_" + std::to_string(dist_rulers);
-		if (num_iterations == 2)
-			save_dir = "regular_ruling_set2_rec";
+		std::string save_dir = "regular_ruling_set2_" + std::to_string(num_iterations);
+		//if (num_iterations == 2)
+			//save_dir = "regular_ruling_set2_rec";
 		timer.finalize(comm, save_dir);
 
 	

@@ -1,14 +1,14 @@
 #pragma once
 
+#include "../communicator.cpp"
+
 class irregular_pointer_doubling
 {
 	struct node_request {
-		std::uint64_t node;
 		std::uint64_t mst;
 	};
 
 	struct answer {
-		std::uint64_t node;
 		std::int64_t r_of_mst;
 		std::uint64_t mst_of_mst;
 		std::uint32_t targetPE_of_mst;
@@ -21,14 +21,33 @@ class irregular_pointer_doubling
 	
 	irregular_pointer_doubling(std::vector<std::uint64_t>& s, std::vector<std::int64_t> r, std::vector<std::uint32_t> targetPEs, std::vector<std::uint64_t> prefix_sum_num_vertices_per_PE)
 	{
+		std::cout << "deprecated";
 		this->s = s;
 		this->r = r;
 		this->targetPEs = targetPEs;
 		this->prefix_sum_num_vertices_per_PE = prefix_sum_num_vertices_per_PE;
+		this->grid = false;
 	}
 	
 	
+	irregular_pointer_doubling(std::vector<std::uint64_t>& s, std::vector<std::int64_t> r, std::vector<std::uint32_t> targetPEs, std::vector<std::uint64_t> prefix_sum_num_vertices_per_PE, bool grid)
+	{
+		this->s = s;
+		this->r = r;
+		this->targetPEs = targetPEs;
+		this->prefix_sum_num_vertices_per_PE = prefix_sum_num_vertices_per_PE;
+		this->grid = grid;
+	}
+	
 	std::vector<std::int64_t> start(kamping::Communicator<>& comm)
+	{
+		std::cout << "deprecated" << std::endl;
+		karam::mpi::GridCommunicator grid_comm;
+		return start(comm, grid_comm);
+	}
+	
+	
+	std::vector<std::int64_t> start(kamping::Communicator<>& comm, karam::mpi::GridCommunicator& grid_comm)
 	{
 		
 		
@@ -43,6 +62,8 @@ class irregular_pointer_doubling
 		timer timer("start", categories, "local_work", "irregular_pointer_doubling");
 		
 		timer.add_info(std::string("num_local_vertices"), std::to_string(num_local_vertices), true);
+		timer.add_info("grid", std::to_string(grid));
+
 		
 		std::vector<std::uint64_t> q = s;
 		std::vector<bool> passive(num_local_vertices, false);
@@ -90,46 +111,40 @@ class irregular_pointer_doubling
 				{
 					std::int32_t targetPE = targetPEs[local_index];
 					std::int32_t packet_index = send_displacements[targetPE] + num_packets_per_PE[targetPE]++;
-					requests[packet_index].node = local_index + node_offset;
 					requests[packet_index].mst = q[local_index];
 					
 				}
 				
 			}
 			
-			auto recv = comm.alltoallv(kamping::send_buf(requests), kamping::send_counts(num_packets_per_PE));
-			std::vector<node_request> recv_requests = recv.extract_recv_buffer();
-			num_packets_per_PE = recv.extract_recv_counts();
-			answers.resize(recv_requests.size());
-			
-		
-			
-			for (std::int32_t i = 0; i < recv_requests.size(); i++)
-			{
-				
+			std::function<answer(const node_request)> lambda = [&] (node_request request) { 
+				std::int32_t local_index = request.mst - node_offset;
+				answer answer;
+				answer.r_of_mst = r[local_index];
+				answer.mst_of_mst = q[local_index];
+				answer.targetPE_of_mst = targetPEs[local_index];
+				answer.passive_of_mst = passive[local_index];
+				return answer;
+			};
+			std::vector<answer> recv_answers = request_reply(timer, requests, num_packets_per_PE, lambda, comm, grid_comm, grid);
 
+
+			std::fill(num_packets_per_PE.begin(), num_packets_per_PE.end(), 0);
+			for (std::int32_t local_index = 0; local_index < num_local_vertices;local_index++)
+			{
+				if (!passive[local_index])
+				{
+					std::int32_t targetPE = targetPEs[local_index];
+					std::int32_t packet_index = send_displacements[targetPE] + num_packets_per_PE[targetPE]++;
 				
-				std::int32_t local_index = recv_requests[i].mst - node_offset;
-				answers[i].node = recv_requests[i].node;
-				answers[i].r_of_mst = r[local_index];
-				answers[i].mst_of_mst = q[local_index];
-				answers[i].targetPE_of_mst = targetPEs[local_index];
-				answers[i].passive_of_mst = passive[local_index];
+					targetPEs[local_index] = recv_answers[packet_index].targetPE_of_mst;
+					q[local_index] = recv_answers[packet_index].mst_of_mst;
+					r[local_index] = r[local_index] + recv_answers[packet_index].r_of_mst;
+					passive[local_index] = recv_answers[packet_index].passive_of_mst;
+				}
 			}
-		
-			std::vector<answer> recv_answers = comm.alltoallv(kamping::send_buf(answers), kamping::send_counts(num_packets_per_PE)).extract_recv_buffer();
-			//dann answers eingetragen
 			
 			
-			for (std::int32_t i = 0; i < recv_answers.size(); i++)
-			{				
-				std::int32_t local_index = recv_answers[i].node - node_offset;
-				
-				targetPEs[local_index] = recv_answers[i].targetPE_of_mst;
-				q[local_index] = recv_answers[i].mst_of_mst;
-				r[local_index] = r[local_index] + recv_answers[i].r_of_mst;
-				passive[local_index] = recv_answers[i].passive_of_mst;
-			}
 		}
 		//timer.finalize(comm, "irregular_pointer_doubling");
 
@@ -147,6 +162,7 @@ class irregular_pointer_doubling
 	
 	
 	private:
+	bool grid;
 	std::uint64_t node_offset;
 	std::uint64_t num_local_vertices;
 	std::uint64_t num_global_vertices;
