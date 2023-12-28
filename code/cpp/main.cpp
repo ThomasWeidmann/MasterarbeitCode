@@ -227,9 +227,11 @@ int main(int argc, char* argv[]) {
 		else if (tree_rooting.compare(argv[1]) == 0)
 		{
 			std::int32_t num_local_vertices = atoi(argv[2]);
-			std::vector<std::uint64_t> tree_vector = generator::generate_regular_wood_vector_from_irregular_graph(num_local_vertices, comm);
+			std::vector<std::uint64_t> tree_vector = generator::generate_regular_wood_vector(num_local_vertices, comm);
 			std::int32_t dist_rulers = atoi(argv[3]);
-			forest_regular_ruling_set2 algorithm(tree_vector, dist_rulers, comm,1);
+			std::int32_t num_iterations = atoi(argv[4]);
+			forest_regular_ruling_set2 algorithm(dist_rulers, num_iterations, grid);
+			algorithm.start(tree_vector, comm, grid_comm);
 			std::vector<std::int64_t> d = algorithm.result_dist;
 			std::vector<std::uint64_t> roots = algorithm.result_root;
 			test::regular_test_ranks_and_roots(comm, tree_vector, d, roots);
@@ -239,14 +241,14 @@ int main(int argc, char* argv[]) {
 			//test::regular_test_ranks(comm, tree_vector, d);
 		}
 		else if (tree_rooting_rec.compare(argv[1]) == 0)
-		{
+		{/*
 			std::int32_t num_local_vertices = atoi(argv[2]);
 			std::vector<std::uint64_t> tree_vector = generator::generate_regular_wood_vector(num_local_vertices, comm);
 			std::int32_t dist_rulers = atoi(argv[3]);
 			std::vector<std::int64_t> d = forest_regular_ruling_set2(tree_vector, dist_rulers, comm,2).result_dist;
 			
 			//analyze_instances::analyze_regular_instance(tree_vector, comm);
-			test::regular_test_ranks(comm, tree_vector, d);
+			test::regular_test_ranks(comm, tree_vector, d);*/
 		}
 		else if (euler_tour.compare(argv[1]) == 0)
 		{

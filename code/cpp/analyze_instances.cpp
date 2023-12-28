@@ -25,7 +25,10 @@ class analyze_instances
 		
 		std::uint64_t dist_rulers = 500;
 		if (dist_rulers > num_local_vertices) dist_rulers = num_local_vertices / 3;
-		forest_regular_ruling_set2 algorithm = forest_regular_ruling_set2(s, dist_rulers, comm,1);
+		forest_regular_ruling_set2 algorithm = forest_regular_ruling_set2(dist_rulers,1, false);
+		karam::mpi::GridCommunicator grid_comm;
+
+		algorithm.start(s, comm, grid_comm);
 		std::vector<std::uint64_t> result_root = algorithm.result_root;
 		std::vector<std::int64_t> result_dist = algorithm.result_dist;
 		

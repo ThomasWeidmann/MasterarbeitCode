@@ -1,7 +1,7 @@
 #pragma once
 
 #include "forest_irregular_pointer_doubling.cpp"
-
+#include "../helper_functions.cpp"
 #include "forest_irregular_ruling_set2.cpp"
 
 class forest_regular_ruling_set2 //this is for trees
@@ -24,7 +24,14 @@ class forest_regular_ruling_set2 //this is for trees
 	
 	public:
 	
-	forest_regular_ruling_set2(std::vector<std::uint64_t>& s, std::uint64_t comm_rounds, kamping::Communicator<>& comm, std::uint32_t num_iterations)
+	forest_regular_ruling_set2(std::uint64_t comm_rounds, std::uint32_t num_iterations, bool grid)
+	{
+		this->comm_rounds = comm_rounds;
+		this->num_iterations = num_iterations;
+		this->grid = grid;
+	}
+	
+	void start(std::vector<std::uint64_t>& s, kamping::Communicator<>& comm, karam::mpi::GridCommunicator& grid_comm)
 	{
 		std::vector<std::string> categories = {"local_work", "communication", "other"};
 		timer timer("graph_umdrehen", categories, "local_work", "wood_regular_ruling_set2");
@@ -34,20 +41,16 @@ class forest_regular_ruling_set2 //this is for trees
 		size = comm.size();
 		rank = comm.rank();
 		num_local_vertices = s.size();
-		this->comm_rounds = comm_rounds;
-		this->num_iterations = num_iterations;
 		node_offset = rank * num_local_vertices;
 		//now turn around s array
 		
-		adj_arr adj_arr = calculate_adj_arr(s, comm, node_offset, timer);
-		edges = adj_arr.edges;
-		bounds = adj_arr.bounds;
+		calculate_adj_arr(s, comm, grid_comm, node_offset, timer);
 		
-		start(comm, timer);
+		start(comm, grid_comm, timer);
 	}
 	
 	//all edges will be turn around, therefore we have indegree 1 and outdegree can be any integer. Additionally adj_arr will have no self edges
-	adj_arr calculate_adj_arr(std::vector<std::uint64_t>& s, kamping::Communicator<>& comm, std::uint64_t node_offset, timer timer)
+	void calculate_adj_arr(std::vector<std::uint64_t>& s, kamping::Communicator<>& comm, karam::mpi::GridCommunicator& grid_comm, std::uint64_t node_offset, timer& timer)
 	{
 		
 		
@@ -81,13 +84,8 @@ class forest_regular_ruling_set2 //this is for trees
 			edges[packet_index].destination = s[i];
 		}
 		
-	
+		std::vector<edge> recv = alltoall(timer, edges, num_packets_per_PE, comm, grid_comm, grid);
 
-		timer.switch_category("communication");
-		
-		auto recv = comm.alltoallv(kamping::send_buf(edges), kamping::send_counts(num_packets_per_PE)).extract_recv_buffer();
-		timer.switch_category("local_work");
-	
 		std::vector<std::uint64_t> turned_edges(recv.size());
 		std::vector<std::uint64_t> edges_per_node(s.size(),0);
 		
@@ -119,15 +117,13 @@ class forest_regular_ruling_set2 //this is for trees
 		for (int i = 0; i < turned_edges.size(); i++)
 			std::cout << turned_edges[i] << ",";
 		std::cout << std::endl;*/
-		adj_arr adj_arr;
-		adj_arr.edges = turned_edges;
-		adj_arr.bounds = bounds;
-		return adj_arr;
-
+		timer.add_checkpoint("unnoetig");
+		this->edges = turned_edges;
+		this->bounds = bounds;
 	}
 	
 	
-	void start(kamping::Communicator<>& comm, timer timer)
+	void start(kamping::Communicator<>& comm, karam::mpi::GridCommunicator& grid_comm, timer& timer)
 	{
 		
 		
@@ -196,7 +192,8 @@ class forest_regular_ruling_set2 //this is for trees
 
 		bool work_left = true;
 		std::uint32_t iteration = 0;
-		while (any_PE_has_work(comm, work_left))
+		
+		while (any_PE_has_work(comm, grid_comm, timer, work_left, grid))
 		{
 			
 			//timer.add_checkpoint("iteration " + std::to_string(iteration++));
@@ -207,10 +204,8 @@ class forest_regular_ruling_set2 //this is for trees
 				std::cout << "(" << packet.ruler_source << "," << packet.destination << "," << packet.distance << "),";
 			std::cout << std::endl;*/
 			
-			timer.switch_category("communication");
+			std::vector<packet> recv_buffer = alltoall(timer, out_buffer, num_packets_per_PE, comm, grid_comm, grid);
 			
-			std::vector<packet> recv_buffer = comm.alltoallv(kamping::send_buf(out_buffer), kamping::send_counts(num_packets_per_PE)).extract_recv_buffer();
-			timer.switch_category("local_work");
 			std::fill(num_packets_per_PE.begin(), num_packets_per_PE.end(), 0);
 			
 			work_left = recv_buffer.size() > 0;
@@ -311,14 +306,9 @@ class forest_regular_ruling_set2 //this is for trees
 		}	
 		timer.add_checkpoint("rekursion_vorbereiten");
 
-		/*
-		for (int i = 0; i<num_local_vertices; i++)
-			std::cout << "final: mst[" << i + node_offset << "]=" << mst[i] << ", del[" << i+node_offset << "]=" << del[i] << (is_ruler(i)?" is_ruler\n":"\n");
-		*/
-		std::vector<std::uint64_t> num_local_vertices_per_PE;
-		timer.switch_category("communication");
-		comm.allgather(kamping::send_buf(local_rulers.size()), kamping::recv_buf<kamping::resize_to_fit>(num_local_vertices_per_PE));
-		timer.switch_category("local_work");
+		
+		std::vector<std::uint64_t> num_local_vertices_per_PE = allgatherv(timer, local_rulers.size(), comm, grid_comm, grid);;
+
 		std::vector<std::uint64_t> prefix_sum_num_vertices_per_PE(size + 1,0);
 		for (std::uint32_t i = 1; i < size + 1; i++)
 		{
@@ -348,8 +338,12 @@ class forest_regular_ruling_set2 //this is for trees
 			std::int32_t packet_index = send_displacements[targetPE] + num_packets_per_PE[targetPE]++;
 			requests[packet_index] = mst[local_rulers[i]];
 		}
-		timer.switch_category("communication");
 		
+		std::function<std::uint64_t(const std::uint64_t)> lambda = [&] (std::uint64_t request) { return map_ruler_to_its_index[request-node_offset] + prefix_sum_num_vertices_per_PE[rank];};
+		std::vector<std::uint64_t> recv_answers = request_reply(timer, requests, num_packets_per_PE, lambda, comm, grid_comm, grid);
+		
+		/*
+		timer.switch_category("communication");
 		auto recv = comm.alltoallv(kamping::send_buf(requests), kamping::send_counts(num_packets_per_PE));
 		timer.switch_category("local_work");
 		
@@ -363,7 +357,7 @@ class forest_regular_ruling_set2 //this is for trees
 		}
 		timer.switch_category("communication");
 		std::vector<std::uint64_t> recv_answers = comm.alltoallv(kamping::send_buf(recv_requests), kamping::send_counts(recv.extract_recv_counts())).extract_recv_buffer();
-		timer.switch_category("local_work");
+		timer.switch_category("local_work");*/
 		std::fill(num_packets_per_PE.begin(), num_packets_per_PE.end(), 0);
 		for (std::uint64_t i = 0; i < local_rulers.size(); i++)
 		{
@@ -430,17 +424,27 @@ class forest_regular_ruling_set2 //this is for trees
 			std::uint64_t packet_index = send_displacements[targetPE] + num_packets_per_PE[targetPE]++;
 			request[packet_index] = mst[i];
 		}
-
+		
+		struct answer{
+			std::uint64_t global_root_index;
+			std::int64_t distance;
+		};
+		std::function<answer(const std::uint64_t)> lambda2 = [&] (std::uint64_t request) { 
+			answer answer;
+			answer.global_root_index = recursive_global_index[map_ruler_to_its_index[request - node_offset]];
+			answer.distance = recursive_r[map_ruler_to_its_index[request - node_offset]];
+			return answer;
+		};
+		std::vector<answer> recv_answers_buffer = request_reply(timer, request, num_packets_per_PE, lambda2, comm, grid_comm, grid);
+		
+/*
 		timer.switch_category("communication");
 	
 		auto recv_request = comm.alltoallv(kamping::send_buf(request), kamping::send_counts(num_packets_per_PE));
 		timer.switch_category("local_work");
 		std::vector<std::uint64_t> recv_request_buffer = recv_request.extract_recv_buffer();
 		
-		struct answer{
-			std::uint64_t global_root_index;
-			std::int64_t distance;
-		};
+		
 		std::vector<answer> answers(recv_request_buffer.size());
 		for (std::uint64_t i = 0; i < recv_request_buffer.size(); i++)
 		{	
@@ -449,7 +453,7 @@ class forest_regular_ruling_set2 //this is for trees
 		}
 		timer.switch_category("communication");
 		auto recv_answers_buffer = comm.alltoallv(kamping::send_buf(answers), kamping::send_counts(recv_request.extract_recv_counts()))	.extract_recv_buffer();
-		timer.switch_category("local_work");
+		timer.switch_category("local_work");*/
 		std::fill(num_packets_per_PE.begin(), num_packets_per_PE.end(), 0);
 
 		result_dist = std::vector<std::int64_t>(num_local_vertices);
@@ -487,17 +491,6 @@ class forest_regular_ruling_set2 //this is for trees
 		return "(" + std::to_string(packet.ruler_source) + "," + std::to_string(packet.destination) + "," + std::to_string(packet.distance) + ")";
 	}
 	
-	bool any_PE_has_work(kamping::Communicator<>& comm, bool this_PE_has_work)
-	{
-		std::int32_t work = this_PE_has_work;
-		std::vector<std::int32_t> send(1,work);
-		std::vector<std::int32_t> recv;
-		comm.allgather(kamping::send_buf(send), kamping::recv_buf<kamping::resize_to_fit>(recv));
-		
-		for (std::int32_t i = 0; i < size; i++)
-			work += recv[i];
-		return work > 0;
-	}
 	
 	void mark_as_ruler(std::uint64_t local_index)
 	{
@@ -567,6 +560,7 @@ class forest_regular_ruling_set2 //this is for trees
 	
 	std::uint64_t comm_rounds;
 	std::uint32_t num_iterations;
+	bool grid;
 };
 
 
