@@ -386,7 +386,8 @@ class forest_regular_ruling_set2 //this is for trees
 		
 		if (num_iterations == 1)
 		{
-			forest_irregular_pointer_doubling recursion(s_rec, r_rec, targetPEs_rec, prefix_sum_num_vertices_per_PE, comm, local_rulers_global_index);
+			forest_irregular_pointer_doubling recursion(s_rec, r_rec, targetPEs_rec, prefix_sum_num_vertices_per_PE, local_rulers_global_index, true, true);
+			recursion.start(comm, grid_comm);
 		
 			recursive_global_index = recursion.local_rulers;
 			recursive_r = recursion.r;
@@ -394,8 +395,8 @@ class forest_regular_ruling_set2 //this is for trees
 		}
 		else
 		{
-			forest_irregular_ruling_set2 recursion(comm_rounds);
-			recursion.start(s_rec, r_rec, targetPEs_rec, prefix_sum_num_vertices_per_PE, comm, local_rulers_global_index);
+			forest_irregular_ruling_set2 recursion(comm_rounds, num_iterations - 1, grid);
+			recursion.start(s_rec, r_rec, targetPEs_rec, prefix_sum_num_vertices_per_PE, comm, grid_comm, local_rulers_global_index);
 			
 			recursive_global_index = recursion.result_root;
 			recursive_r = recursion.result_dist;

@@ -1,4 +1,5 @@
-#include "tree_rooting/forest_regular_ruling_set2.cpp"
+#include "tree_rooting/forest_regular_optimized_ruling_set.cpp"
+#include "list_ranking/regular_pointer_doubling.cpp"
 
 #include "kamping/checking_casts.hpp"
 #include "kamping/collectives/alltoall.hpp"
@@ -12,11 +13,202 @@ class analyze_instances
 {
 	public:
 	
-	static void analyze_regular_instance(std::vector<std::uint64_t>& s, kamping::Communicator<>& comm)
+	static void analyze_regular_instance2(std::vector<std::uint64_t>& s, kamping::Communicator<>& comm, karam::mpi::GridCommunicator& grid_comm, std::string save_dir)
+	{
+		
+		
+		//regular_pointer_doubling algorithm(s, comm, true, true);
+		//std::vector<std::int64_t> result_dist= algorithm.start(comm, grid_comm);				
+		//std::vector<std::uint64_t> result_root = algorithm.q;
+		
+		forest_regular_optimized_ruling_set algorithm(100,10,true,true);
+		algorithm.start(s, comm, grid_comm);
+		std::vector<std::uint64_t> result_root = algorithm.result_root;
+		std::vector<std::int64_t> result_dist = algorithm.result_dist;
+		analyze_regular_instance2(result_root, result_dist, comm, grid_comm, save_dir);
+	}
+	
+	static void analyze_regular_instance2(std::vector<std::uint64_t>& result_root, std::vector<std::int64_t>& result_dist, kamping::Communicator<>& comm, karam::mpi::GridCommunicator& grid_comm, std::string save_dir)
 	{
 		if (comm.rank() == 0) std::cout << "##########################\n######### analyse ########\n##########################\n\n";
+		std::uint64_t num_local_vertices = result_root.size();
+		std::uint32_t rank = comm.rank();
+		std::uint32_t size = comm.size();
+		std::uint64_t node_offset = num_local_vertices *rank;
+		
+		
+		std::unordered_map<std::uint64_t, std::uint64_t> local_subtree_size; //local_subtree_size[i] = j iff there are j nodes on this PE with the root node i
+		std::unordered_map<std::uint64_t, std::int64_t> local_max_depth_size;
+		for (std::uint32_t i = 0; i < num_local_vertices; i++)
+		{
+			local_subtree_size[result_root[i]] = 0;
+			local_max_depth_size[result_root[i]] = 0;
+		}
+		for (std::uint32_t i = 0; i < num_local_vertices; i++)
+		{
+			local_subtree_size[result_root[i]]++;
+			
+			local_max_depth_size[result_root[i]] = std::max(local_max_depth_size[result_root[i]], result_dist[i]);
+		}
+		
+		
+		std::vector<std::int32_t> num_packets_per_PE_row(grid_comm.row_comm().size(),0);
+		std::vector<std::int32_t> send_displacements_row(grid_comm.row_comm().size() + 1,0);
+		for (const auto& [key, value] : local_subtree_size)
+		{
+			std::int32_t targetPE = key / num_local_vertices;
+			targetPE = grid_comm.proxy_col_index(targetPE);
+			num_packets_per_PE_row[targetPE]++;
+		}
+		calculate_send_displacements_and_reset_num_packets_per_PE(send_displacements_row, num_packets_per_PE_row);
+		struct packet {
+			std::uint64_t target_node;
+			std::uint64_t subtree_size;
+			std::uint64_t subtree_depth;
+		};
+		std::vector<packet> send_packets(send_displacements_row[send_displacements_row.size()-1]);
+		for (const auto& [key, value] : local_subtree_size)
+		{
+			std::int32_t targetPE = key / num_local_vertices;
+			targetPE = grid_comm.proxy_col_index(targetPE);
+			std::int32_t packet_index = send_displacements_row[targetPE] + num_packets_per_PE_row[targetPE]++;
+			
+			//std::cout << comm.rank() << " hier hat root " << key << " subtreesize " << local_subtree_size[key] << " und maxdeph " << local_max_depth_size[key] << std::endl;
+			
+			send_packets[packet_index].target_node = key;
+			send_packets[packet_index].subtree_size = local_subtree_size[key];
+			send_packets[packet_index].subtree_depth = local_max_depth_size[key];
+		}
+		std::vector<packet> recv_packets = grid_comm.row_comm().alltoallv(kamping::send_buf(send_packets),kamping::send_counts(num_packets_per_PE_row)).extract_recv_buffer();
+
+		std::vector<std::int32_t> num_packets_per_PE_col(grid_comm.col_comm().size(),0);
+		std::vector<std::int32_t> send_displacements_col(grid_comm.col_comm().size() + 1,0);
+		local_subtree_size.clear();
+		local_max_depth_size.clear();
+		for (std::uint64_t i = 0; i < recv_packets.size(); i++)
+		{
+			std::uint64_t node = recv_packets[i].target_node;
+						
+			if (local_subtree_size.contains(node))
+			{
+				local_subtree_size[node] += recv_packets[i].subtree_size;
+				
+				std::uint64_t currenct_max_depth = local_max_depth_size[recv_packets[i].target_node];
+				std::uint64_t max_deph = std::max(currenct_max_depth, recv_packets[i].subtree_depth);
+				
+				//std::cout << "max(" << local_max_depth_size[node] << "," << recv_packets[i].subtree_depth << ") = " << max_deph << std::endl;
+				
+				local_max_depth_size[node]  = max_deph;// local_max_depth_size[node] < recv_packets[i].subtree_depth ? recv_packets[i].subtree_depth : local_max_depth_size[node];
+			}
+			else
+			{
+				local_subtree_size[node] = recv_packets[i].subtree_size;
+				local_max_depth_size[node]  = recv_packets[i].subtree_depth;
+			}
+		}
+		for (const auto& [key, value] : local_subtree_size)
+		{
+			std::int32_t targetPE = key / num_local_vertices;
+			targetPE = grid_comm.proxy_row_index(targetPE);
+			num_packets_per_PE_col[targetPE]++;
+		}
+		calculate_send_displacements_and_reset_num_packets_per_PE(send_displacements_col, num_packets_per_PE_col);
+		send_packets.resize(send_displacements_col[send_displacements_col.size()-1]);
+		for (const auto& [key, value] : local_subtree_size)
+		{
+			std::int32_t targetPE = key / num_local_vertices;
+			targetPE = grid_comm.proxy_row_index(targetPE);
+			std::int32_t packet_index = send_displacements_col[targetPE] + num_packets_per_PE_col[targetPE]++;
+			//std::cout << comm.rank() << " indirektion hier hat root " << key << " subtreesize " << local_subtree_size[key] << " und maxdeph " << local_max_depth_size[key] << std::endl;
+
+			send_packets[packet_index].target_node = key;
+			send_packets[packet_index].subtree_size = local_subtree_size[key];
+			send_packets[packet_index].subtree_depth = local_max_depth_size[key];
+		}
+
+		recv_packets = grid_comm.col_comm().alltoallv(kamping::send_buf(send_packets),kamping::send_counts(num_packets_per_PE_col)).extract_recv_buffer();
+		local_subtree_size.clear();
+		local_max_depth_size.clear();
+		
+		for (std::uint64_t i = 0; i < recv_packets.size(); i++)
+		{
+			std::uint64_t node = recv_packets[i].target_node;
+			
+			
+			if (local_subtree_size.contains(node))
+			{
+				local_subtree_size[node] += recv_packets[i].subtree_size;
+				local_max_depth_size[node]  = local_max_depth_size[node] < recv_packets[i].subtree_depth ? recv_packets[i].subtree_depth : local_max_depth_size[node];
+			}
+			else
+			{
+				local_subtree_size[node] = recv_packets[i].subtree_size;
+				local_max_depth_size[node]  = recv_packets[i].subtree_depth;
+			}
+		}
+		
+		//we are just interested in tree dephts
+		
+		std::vector<std::uint64_t> outliers;
+		std::uint64_t array_length = 100000;
+		std::vector<std::uint64_t> sub_tree_dephs(array_length,0);
 
 		
+		
+		std::uint64_t num_trees = 0;
+		for (const auto& [key, value] : local_max_depth_size)
+		{
+			num_trees++;
+			
+			if (value >= array_length)
+			{
+				outliers.push_back(value);
+			}
+			else
+			{
+				sub_tree_dephs[value]++;
+			}
+		}
+		
+		
+		std::vector<uint64_t> total_num_trees = comm.reduce(kamping::send_buf(num_trees), kamping::op(kamping::ops::plus<>())).extract_recv_buffer();
+		std::vector<std::uint64_t> recv_sub_tree_dephs = comm.reduce(kamping::send_buf(sub_tree_dephs), kamping::op(kamping::ops::plus<>())).extract_recv_buffer();
+		std::vector<std::uint64_t> all_outliers;
+		comm.allgatherv(kamping::send_buf(outliers), kamping::recv_buf<kamping::resize_to_fit>(all_outliers));
+		
+		if (comm.rank() == 0)
+		{
+			std::string output = "p=" + std::to_string(comm.size()) + ",n/p=" + std::to_string(result_root.size()) + "\n";
+			output += "there are in total " + std::to_string(total_num_trees[0]) + " tree with tree dephs:\n[";
+			for (int i = 0; i < recv_sub_tree_dephs.size(); i++)
+			{
+				if (recv_sub_tree_dephs[i] > 0)
+					output +=  "[" + std::to_string(i) + "," + std::to_string(recv_sub_tree_dephs[i]) + "],";
+			}
+			for (int i = 0; i < all_outliers.size(); i++)
+				output += "[" + std::to_string(all_outliers[i]) + ",1],";
+			
+			output.pop_back();
+			output += "\n";
+			
+			std::cout << output << std::endl;
+			std::ofstream myfile;
+			myfile.open (save_dir + ".txt",  std::ios::app);
+			myfile << output;
+			myfile.close();
+				
+		}
+		
+	}
+	
+	
+	
+	static void analyze_regular_instance(std::vector<std::uint64_t>& s, kamping::Communicator<>& comm)
+	{
+		if (comm.rank() == 0) std::cout << "##########################\n######### DEPRECATED ########\n##########################\n\n";
+
+		karam::mpi::GridCommunicator grid_comm;
+
 		
 		std::uint64_t num_local_vertices = s.size();
 		std::uint32_t rank = comm.rank();
@@ -24,11 +216,14 @@ class analyze_instances
 		std::uint64_t node_offset = num_local_vertices *rank;
 		
 		std::uint64_t dist_rulers = 500;
-		if (dist_rulers > num_local_vertices) dist_rulers = num_local_vertices / 3;
-		forest_regular_ruling_set2 algorithm = forest_regular_ruling_set2(dist_rulers,1, false);
-		karam::mpi::GridCommunicator grid_comm;
-
+	//	if (dist_rulers > num_local_vertices) dist_rulers = num_local_vertices / 3;
+//		forest_regular_ruling_set2 algorithm = forest_regular_ruling_set2(dist_rulers,1, false);
+		
+		forest_regular_optimized_ruling_set algorithm(100,10,true,true);
 		algorithm.start(s, comm, grid_comm);
+	
+		
+
 		std::vector<std::uint64_t> result_root = algorithm.result_root;
 		std::vector<std::int64_t> result_dist = algorithm.result_dist;
 		
@@ -108,7 +303,7 @@ class analyze_instances
 
 		if (rank == 0)
 		{
-			int parts = 5;
+			int parts = 10;
 			
 			if (parts >= all_subtree_sizes.size())
 			{

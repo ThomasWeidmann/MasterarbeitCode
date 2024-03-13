@@ -7,22 +7,22 @@ class irregular_ruling_set2
 	struct packet{
 		std::uint64_t ruler_source;
 		std::uint64_t destination;
-		std::uint64_t distance;
+		std::int64_t distance;
 		std::uint32_t ruler_PE;
 	};
 
+	
 
 	
 	public:
 	irregular_ruling_set2(std::vector<std::uint64_t>& s, std::vector<std::int64_t> r, std::vector<std::uint32_t> targetPEs, std::uint64_t dist_rulers, std::vector<std::uint64_t> prefix_sum_num_vertices_per_PE)
 	{
-				std::cout << "deprecated constructor!" << std::endl;
+		std::cout << "deprecated constructor!" << std::endl;
 
 		this->s = s;
 		this->dist_rulers = dist_rulers;
 		this->r = r;
 		this->targetPEs = targetPEs;
-		this->prefix_sum_num_vertices_per_PE = prefix_sum_num_vertices_per_PE;
 		this->grid = false;
 		this->num_iterations = 1;
 
@@ -30,17 +30,31 @@ class irregular_ruling_set2
 	
 	
 	
-	irregular_ruling_set2(std::vector<std::uint64_t>& s, std::vector<std::int64_t> r, std::vector<std::uint32_t> targetPEs, std::uint64_t dist_rulers, std::vector<std::uint64_t> prefix_sum_num_vertices_per_PE, std::uint32_t num_iterations, bool grid)
+	irregular_ruling_set2(std::vector<std::uint64_t>& s, std::vector<std::int64_t> r, std::vector<std::uint32_t> targetPEs, double dist_rulers, std::vector<std::uint64_t> prefix_sum_num_vertices_per_PE, std::uint32_t num_iterations, bool grid)
+	{
+		std::cout << "deprecated constructorl" << std::endl;
+		this->s = s;
+		this->dist_rulers = dist_rulers;
+		this->r = r;
+		this->targetPEs = targetPEs;
+		this->grid = grid;
+		this->num_iterations = num_iterations;
+
+	}
+	
+	irregular_ruling_set2(std::vector<std::uint64_t>& s, std::vector<std::int64_t>& r, std::vector<std::uint32_t>& targetPEs, double dist_rulers, std::uint64_t node_offset, std::uint64_t num_global_vertices, std::uint32_t num_iterations, bool grid)
 	{
 		this->s = s;
 		this->dist_rulers = dist_rulers;
 		this->r = r;
 		this->targetPEs = targetPEs;
-		this->prefix_sum_num_vertices_per_PE = prefix_sum_num_vertices_per_PE;
+		this->node_offset = node_offset;
+		this->num_global_vertices = num_global_vertices;
 		this->grid = grid;
 		this->num_iterations = num_iterations;
 
 	}
+	
 	
 	std::vector<std::int64_t> start(kamping::Communicator<>& comm)
 	{
@@ -49,24 +63,30 @@ class irregular_ruling_set2
 		return start(comm, grid_comm);
 	}
 	
+	void add_timer_info(std::string info)
+	{
+		this->info = info;
+	}
+	
 	std::vector<std::int64_t> start(kamping::Communicator<>& comm, karam::mpi::GridCommunicator& grid_comm)
 	{
-		
-		
 		rank = comm.rank();
 		size = comm.size();
 		num_local_vertices = s.size();
-		node_offset = prefix_sum_num_vertices_per_PE[rank];
 		
 		std::uint64_t out_buffer_size = num_local_vertices/dist_rulers;
 		std::vector<packet> out_buffer(out_buffer_size);
 		
-		std::vector<std::string> categories = {"local_work", "communication"};
+		std::vector<std::string> categories = {"local_work", "communication", "other"};
 		timer timer("ruler_pakete_senden", categories, "local_work", "irregular_ruling_set2");
 		
 		timer.add_info(std::string("dist_rulers"), std::to_string(dist_rulers));
-		timer.add_info(std::string("num_local_vertices"), std::to_string(num_local_vertices), true);
+		timer.add_info("average_num_local_vertices", std::to_string(num_global_vertices/size));
 		timer.add_info("grid", std::to_string(grid));
+		
+		if (info.size() > 0)
+			timer.add_info(std::string("additional_info"), info);
+		
 
 		
 
@@ -116,10 +136,10 @@ class irregular_ruling_set2
 		std::vector<std::int64_t> del(num_local_vertices,0);
 		
 		
-		for (std::uint64_t iteration = 0; iteration < dist_rulers + 3; iteration++)
+		for (std::uint64_t iteration = 0; iteration < dist_rulers+1; iteration++)
 		{
-			/*
-			std::cout << rank << " in iteration " << iteration << " with following packages:\n";
+			
+			/*std::cout << rank << " in iteration " << iteration << " with following packages:\n";
 			for (packet& packet: out_buffer)
 				std::cout << "(" << packet.ruler_source << "," << packet.destination << "," << packet.distance << "),";
 			std::cout << std::endl;*/
@@ -221,14 +241,11 @@ class irregular_ruling_set2
 		
 		timer.add_checkpoint("rekursion_vorbereiten");
 
-		//now just the global starting node is unreached, this node is also always a ruler
-		std::vector<std::uint64_t> num_local_rulers_per_PE = allgatherv(timer, local_rulers.size(), comm, grid_comm, grid);
-
-		std::vector<std::uint64_t> prefix_sum_num_rulers_per_PE(size + 1,0);
-		for (std::uint32_t i = 1; i < size + 1; i++)
-		{
-			prefix_sum_num_rulers_per_PE[i] = prefix_sum_num_rulers_per_PE[i-1] + num_local_rulers_per_PE[i-1];
-		}
+		
+		std::uint64_t node_offset_rec = comm.exscan(kamping::send_buf((std::uint64_t)local_rulers.size()), kamping::op(kamping::ops::plus<>())).extract_recv_buffer()[0];
+		std::uint64_t num_global_vertices_rec = node_offset_rec + local_rulers.size(); //das hier stimmt nur für rank = size -1
+		comm.bcast_single(kamping::send_recv_buf(num_global_vertices_rec), kamping::root(size-1));
+				
 		
 		
 		std::vector<std::uint64_t> map_ruler_to_its_index(num_local_vertices);
@@ -257,7 +274,7 @@ class irregular_ruling_set2
 			requests[packet_index] = mst[local_rulers[i]];
 		}
 		
-		std::function<std::uint64_t(const std::uint64_t)> lambda = [&] (std::uint64_t request) { return map_ruler_to_its_index[request-node_offset] + prefix_sum_num_rulers_per_PE[rank];};
+		std::function<std::uint64_t(const std::uint64_t)> lambda = [&] (std::uint64_t request) { return map_ruler_to_its_index[request-node_offset] + node_offset_rec;};
 		std::vector<std::uint64_t> recv_answers = request_reply(timer, requests, num_packets_per_PE, lambda, comm, grid_comm, grid);
 		
 		std::fill(num_packets_per_PE.begin(), num_packets_per_PE.end(), 0);
@@ -272,55 +289,25 @@ class irregular_ruling_set2
 		timer.add_checkpoint("rekursion");
 		std::vector<std::int64_t> ranks;
 		
-		std::uint64_t n = prefix_sum_num_vertices_per_PE[size];
-		std::uint64_t n_reduced = prefix_sum_num_rulers_per_PE[size];
-		if (rank == 0) std::cout << n_reduced / size << " nodes per PE " << std::endl;
-		if (num_iterations > 1)
+		std::uint64_t n = num_global_vertices;//prefix_sum_num_vertices_per_PE[size];
+		std::uint64_t n_reduced = num_global_vertices_rec;
+		
+		timer.switch_category("other");
+
+		if (n_reduced / size > 10000)
 		{
-			double c_direct = 0.78703;
-			double c_grid = 0.20366;
+			irregular_ruling_set2 algorithm(s_rec, r_rec, targetPEs_rec, dist_rulers, node_offset_rec, num_global_vertices_rec, num_iterations - 1, grid);
 
-			if (grid)
-			{
-				double wurzel_n_durch_p34 = std::sqrt(n_reduced) /std::pow(size, 0.75);
-				
-				double new_dist_rulers = c_grid * wurzel_n_durch_p34 * std::log(c_grid * wurzel_n_durch_p34)+1;
+			ranks = algorithm.start(comm, grid_comm);
 			
-				irregular_ruling_set2 algorithm(s_rec, r_rec, targetPEs_rec, new_dist_rulers,  prefix_sum_num_rulers_per_PE, num_iterations - 1, grid);
-				ranks = algorithm.start(comm, grid_comm);	
-			}
-			else
-			{
-
-				double wurzel_n_durch_p = std::sqrt(n_reduced)/size;
-
-				double new_dist_rulers = c_direct * wurzel_n_durch_p * std::log(c_direct * wurzel_n_durch_p)+1;
-				irregular_ruling_set2 algorithm(s_rec, r_rec, targetPEs_rec, new_dist_rulers,  prefix_sum_num_rulers_per_PE, num_iterations - 1, grid);
-				ranks = algorithm.start(comm, grid_comm);	
-					
-			}
-			
-			
-			/*
-			double wurzel_n_durch_p = std::sqrt(prefix_sum_num_vertices_per_PE[size]) / size;
-			
-			double e = 2.718281828459045235;
-			double c = std::pow(e,lambertw(dist_rulers)) /  wurzel_n_durch_p;			
-			if (rank == 0 ) std::cout << "############################################### c = " << c << std::endl;
-			wurzel_n_durch_p = std::sqrt(prefix_sum_num_rulers_per_PE[size])/size;
-
-			double new_dist_rulers = c * wurzel_n_durch_p * std::log(c * wurzel_n_durch_p);
-			
-			if (rank == 0) std::cout << "############################################### new_dist_rulers " << new_dist_rulers << std::endl;
-			irregular_ruling_set2 algorithm(s_rec, r_rec, targetPEs_rec, new_dist_rulers,  prefix_sum_num_rulers_per_PE, num_iterations - 1, grid);
-			ranks = algorithm.start(comm, grid_comm);	*/
 		}
 		else
 		{
-			irregular_pointer_doubling algorithm(s_rec, r_rec, targetPEs_rec, prefix_sum_num_rulers_per_PE, grid);
-			ranks = algorithm.start(comm, grid_comm);	
-
+			irregular_pointer_doubling algorithm(s_rec, r_rec, targetPEs_rec, grid, node_offset_rec, num_global_vertices_rec);
+			ranks = algorithm.start(comm, grid_comm);
 		}
+		
+		timer.switch_category("local_work");
 
 		
 		timer.add_checkpoint("finalen_ranks_berechnen");
@@ -354,10 +341,11 @@ class irregular_ruling_set2
 		{
 			std::int32_t targetPE = mst_PE[i];
 			std::uint64_t packet_index = send_displacements[targetPE] + num_packets_per_PE[targetPE]++;
-			del[i] = prefix_sum_num_vertices_per_PE[size] - 1 - (del[i] + recv_answers[packet_index]);
+			del[i] = num_global_vertices - 1 - (del[i] + recv_answers[packet_index]);
 		}
 		
-		//timer.finalize(comm, "irregular_ruling_set2");
+		//if (num_iterations == 1)
+			//timer.finalize(comm, "irregular_ruling_set2");
 
 
 	
@@ -438,17 +426,18 @@ class irregular_ruling_set2
 		std::fill(num_packets_per_PE.begin(), num_packets_per_PE.end(), 0);
 	}
 	
-	
 	private:
 	bool grid;
 	std::uint32_t num_iterations;
 
 	std::uint64_t node_offset;
+	std::uint64_t num_global_vertices;
 	std::uint64_t num_local_vertices;
 	std::uint64_t rank, size;
 	std::vector<std::uint64_t> s;
 	std::vector<std::int64_t> r;
 	std::vector<std::uint32_t> targetPEs;
-	std::vector<std::uint64_t> prefix_sum_num_vertices_per_PE;
-	std::uint64_t dist_rulers;
+	double dist_rulers;
+	
+	std::string info = "";
 };

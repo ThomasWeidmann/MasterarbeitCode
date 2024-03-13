@@ -21,23 +21,33 @@ class irregular_pointer_doubling
 	
 	irregular_pointer_doubling(std::vector<std::uint64_t>& s, std::vector<std::int64_t> r, std::vector<std::uint32_t> targetPEs, std::vector<std::uint64_t> prefix_sum_num_vertices_per_PE)
 	{
-		std::cout << "deprecated";
+		std::cout << "deprecated" << std::endl;
 		this->s = s;
 		this->r = r;
 		this->targetPEs = targetPEs;
-		this->prefix_sum_num_vertices_per_PE = prefix_sum_num_vertices_per_PE;
 		this->grid = false;
 	}
 	
 	
 	irregular_pointer_doubling(std::vector<std::uint64_t>& s, std::vector<std::int64_t> r, std::vector<std::uint32_t> targetPEs, std::vector<std::uint64_t> prefix_sum_num_vertices_per_PE, bool grid)
 	{
+		std::cout << "deprecated" << std::endl;
 		this->s = s;
 		this->r = r;
 		this->targetPEs = targetPEs;
-		this->prefix_sum_num_vertices_per_PE = prefix_sum_num_vertices_per_PE;
 		this->grid = grid;
 	}
+	
+	irregular_pointer_doubling(std::vector<std::uint64_t>& s, std::vector<std::int64_t> r, std::vector<std::uint32_t> targetPEs, bool grid, std::uint64_t node_offset, std::uint64_t num_global_vertices)
+	{
+		this->s = s;
+		this->r = r;
+		this->targetPEs = targetPEs;
+		this->node_offset = node_offset;
+		this->num_global_vertices = num_global_vertices;
+		this->grid = grid;
+	}
+	
 	
 	std::vector<std::int64_t> start(kamping::Communicator<>& comm)
 	{
@@ -55,13 +65,12 @@ class irregular_pointer_doubling
 		rank = comm.rank();
 		size = comm.size();
 		num_local_vertices = s.size();
-		num_global_vertices = prefix_sum_num_vertices_per_PE[size];
-		node_offset = prefix_sum_num_vertices_per_PE[rank];
 		
 		std::vector<std::string> categories = {"local_work", "communication"};
 		timer timer("start", categories, "local_work", "irregular_pointer_doubling");
 		
-		timer.add_info(std::string("num_local_vertices"), std::to_string(num_local_vertices), true);
+		//timer.add_info(std::string("num_local_vertices"), std::to_string(num_local_vertices), true);
+		timer.add_info(std::string("average_num_local_vertices"), std::to_string(num_global_vertices / size));
 		timer.add_info("grid", std::to_string(grid));
 
 		
@@ -170,5 +179,4 @@ class irregular_pointer_doubling
 	std::vector<std::uint64_t> s;
 	std::vector<std::int64_t> r;
 	std::vector<std::uint32_t> targetPEs;
-	std::vector<std::uint64_t> prefix_sum_num_vertices_per_PE;
 };

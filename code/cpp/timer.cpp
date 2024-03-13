@@ -55,6 +55,7 @@ class timer
 		
 	}
 	
+	
 	void add_info(std::string name, std::string value)
 	{
 		add_info(name, value, false);

@@ -1,3 +1,5 @@
+#pragma once
+
 class test
 {
 	public:
@@ -193,10 +195,16 @@ class test
 			std::int32_t targetPE = s[i] / num_local_vertices;
 			std::int32_t packet_index = send_displacements[targetPE] + num_packets_per_PE[targetPE]++;
 			
+			//std::cout << "testing: " << i + node_offset << " where " << d[i] << " - " << r[i] << " == " <<recv_answers[packet_index].rank<<std::endl;
+			
 			correct &= d[i] - r[i] ==  recv_answers[packet_index].rank;
+			
+			if (s[i] == i + node_offset)
+				correct &= d[i] == 0;
 		}
 		
 		send_num[0] = !correct;
+		
 		comm.allgather(kamping::send_buf(send_num), kamping::recv_buf<kamping::resize_to_fit>(recv_num));
 		sum = 0;
 		for (std::uint64_t i = 0; i < size; i++)
@@ -215,6 +223,9 @@ class test
 		correct = true;
 		for (std::uint64_t i = 0; i < num_local_vertices; i++)
 		{
+			if (s[i] == i + node_offset)
+				correct &= roots[i] == s[i];
+			
 			std::int32_t targetPE = s[i] / num_local_vertices;
 			std::int32_t packet_index = send_displacements[targetPE] + num_packets_per_PE[targetPE]++;
 			

@@ -277,7 +277,7 @@ class forest_euler_tour
 		std::vector<std::int64_t> ranks;
 		if (true)
 		{
-			forest_irregular_ruling_set2 recursion(dist_rulers);
+			forest_irregular_ruling_set2 recursion(dist_rulers,1 , false);
 			
 			std::vector<std::uint64_t> unnötig(s_edges.size());
 			

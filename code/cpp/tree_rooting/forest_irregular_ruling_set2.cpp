@@ -20,38 +20,64 @@ class forest_irregular_ruling_set2 //this is for forest
 	
 	public:
 	
-	forest_irregular_ruling_set2(std::uint64_t comm_rounds)
+	forest_irregular_ruling_set2(std::uint64_t comm_rounds, std::uint32_t num_iterations, bool grid)
 	{
 		this->comm_rounds = comm_rounds;
-	}	
+		this->num_iterations = num_iterations;
+		this->grid = grid;
+	}
 
 	
-	//targetPEs[i] is targetPE von s[i]
+	
 	void start(std::vector<std::uint64_t>& s, std::vector<std::int64_t>& r, std::vector<std::uint32_t>& targetPEs, std::vector<std::uint64_t>& prefix_sum_num_vertices_per_PE, kamping::Communicator<>& comm, std::vector<std::uint64_t>& local_rulers)
 	{
 		std::vector<std::string> categories = {"local_work", "communication", "other"};
-		timer timer("graph_umdrehen", categories, "local_work", "forest_irregular_ruling_set2");
+		timer timer("graph_umdrehen", categories, "local_work", "deprecated!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
 		
-		timer.add_info(std::string("comm_rounds"), std::to_string(comm_rounds));
+		karam::mpi::GridCommunicator grid_comm;
+
 		
 		size = comm.size();
 		rank = comm.rank();
 		num_local_vertices = s.size();
 		
+		timer.add_info(std::string("comm_rounds"), std::to_string(comm_rounds));
+		timer.add_info(std::string("num_local_vertices"), std::to_string(num_local_vertices), true);
+		timer.add_info("grid", std::to_string(grid));
+		
 		node_offset = prefix_sum_num_vertices_per_PE[rank];
 		//now turn around s array
-		
-		calculate_adj_arr(s, r, targetPEs, comm, node_offset);
+		calculate_adj_arr(s, r, targetPEs, comm, grid_comm, node_offset);
+		start(comm, grid_comm, timer);	
+	}
 	
+	
+	//targetPEs[i] is targetPE von s[i]
+	void start(std::vector<std::uint64_t>& s, std::vector<std::int64_t>& r, std::vector<std::uint32_t>& targetPEs, std::vector<std::uint64_t>& prefix_sum_num_vertices_per_PE, kamping::Communicator<>& comm, karam::mpi::GridCommunicator& grid_comm, std::vector<std::uint64_t>& local_rulers)
+	{
+		std::vector<std::string> categories = {"local_work", "communication", "other"};
+		timer timer("graph_umdrehen", categories, "local_work", "forest_irregular_ruling_set2");
 		
-		start(comm, timer);
 		
+		
+		size = comm.size();
+		rank = comm.rank();
+		num_local_vertices = s.size();
+		
+		timer.add_info(std::string("comm_rounds"), std::to_string(comm_rounds));
+		timer.add_info(std::string("num_local_vertices"), std::to_string(num_local_vertices), true);
+		timer.add_info("grid", std::to_string(grid));
+		
+		node_offset = prefix_sum_num_vertices_per_PE[rank];
+		//now turn around s array
+		calculate_adj_arr(s, r, targetPEs, comm, grid_comm, node_offset);
+		start(comm, grid_comm, timer);	
 	}
 	
 	
 	
 	//all edges will be turn around, therefore we have indegree 1 and outdegree can be any integer. Additionally adj_arr will have no self edges
-	void calculate_adj_arr(std::vector<std::uint64_t>& s, std::vector<std::int64_t>& r, std::vector<std::uint32_t>& targetPEs, kamping::Communicator<>& comm, std::uint64_t node_offset)
+	void calculate_adj_arr(std::vector<std::uint64_t>& s, std::vector<std::int64_t>& r, std::vector<std::uint32_t>& targetPEs, kamping::Communicator<>& comm, karam::mpi::GridCommunicator& grid_comm, std::uint64_t node_offset)
 	{
 		
 		
@@ -119,6 +145,7 @@ class forest_irregular_ruling_set2 //this is for forest
 			edges_weights[packet_index] = recv[i].weight;
 			
 		}
+		
 		/*
 		//print for testing
 		std::cout << "PE " << rank << " with s: ";
@@ -135,7 +162,7 @@ class forest_irregular_ruling_set2 //this is for forest
 	}
 	
 	
-	void start(kamping::Communicator<>& comm, timer timer)
+	void start(kamping::Communicator<>& comm, karam::mpi::GridCommunicator& grid_comm, timer& timer)
 	{
 		
 		timer.add_checkpoint("ruler_pakete_senden");
@@ -398,12 +425,40 @@ class forest_irregular_ruling_set2 //this is for forest
 		for (int i = 0; i < targetPEs_rec.size(); i++)
 			std::cout << targetPEs_rec[i] << " ";
 		std::cout << std::endl;*/
-						
-		forest_irregular_pointer_doubling recursion(s_rec, r_rec, targetPEs_rec, prefix_sum_num_vertices_per_PE_rec, comm, local_rulers_global_index);
+		
+		
+		
+		std::vector<std::uint64_t> recursive_roots;
+		std::vector<std::int64_t> recursive_ranks;
+		
+		if (num_iterations == 1)
+		{
+			forest_irregular_pointer_doubling recursion(s_rec, r_rec, targetPEs_rec, prefix_sum_num_vertices_per_PE_rec, local_rulers_global_index, true, true);
+			recursion.start(comm, grid_comm);
+		
+			recursive_roots = recursion.local_rulers;
+			recursive_ranks = recursion.r;
+			
+		}
+		else
+		{
+			forest_irregular_ruling_set2 recursion(comm_rounds,num_iterations - 1, false);
+			recursion.start(s_rec, r_rec, targetPEs_rec, prefix_sum_num_vertices_per_PE_rec, comm, grid_comm, local_rulers_global_index);
+			
+			recursive_roots = recursion.result_root;
+			recursive_ranks = recursion.result_dist;
+		}
+		
+		
+		
+		
+		//forest_irregular_pointer_doubling recursion(s_rec, r_rec, targetPEs_rec, prefix_sum_num_vertices_per_PE_rec, comm, local_rulers_global_index);
 		std::fill(num_packets_per_PE.begin(), num_packets_per_PE.end(), 0);
 		timer.add_checkpoint("finalen_ranks_berechnen");
 		timer.switch_category("local_work");
 
+		//recursive_roots = recursion.local_rulers;
+		//recursive_ranks = recursion.r;
 
 		//TODO finalen ranks berechnen mit request und inplace answer mit recursion.local_rulers und damit bessere Zeit wie gestern. git reset --hard, wenn bei wood_irregular_pointer_doubling was falsch
 		for (std::uint64_t i = 0; i < num_local_vertices; i++)
@@ -431,8 +486,8 @@ class forest_irregular_ruling_set2 //this is for forest
 		std::vector<answer> answers(recv_request_buffer.size());
 		for (std::uint64_t i = 0; i < recv_request_buffer.size(); i++)
 		{	
-			answers[i].global_root_index = recursion.local_rulers[map_ruler_to_its_index[recv_request_buffer[i] - node_offset]];
-			answers[i].distance = recursion.r[map_ruler_to_its_index[recv_request_buffer[i] - node_offset]];
+			answers[i].global_root_index = recursive_roots[map_ruler_to_its_index[recv_request_buffer[i] - node_offset]];
+			answers[i].distance = recursive_ranks[map_ruler_to_its_index[recv_request_buffer[i] - node_offset]];
 			
 			//std::cout << "request " << recv_request_buffer[i] << " wird beantwortet mit " <<  answers[i].distance << std::endl;
 		}
@@ -456,7 +511,7 @@ class forest_irregular_ruling_set2 //this is for forest
 			//std::cout << i + node_offset << " hat final rank " << recv_answers_buffer[packet_index].distance << "+" << del[i] << "=" << result_dist[i] << std::endl;
 		}
 		
-		//timer.finalize(comm, "forest_irregular_ruling_set2");
+		timer.finalize(comm, "forest_irregular_ruling_set2");
 	}
 	
 	
@@ -547,6 +602,8 @@ class forest_irregular_ruling_set2 //this is for forest
 	std::vector<std::uint64_t> result_root;
 	
 	std::uint64_t comm_rounds;
+	int num_iterations;
+	bool grid;
 };
 
 

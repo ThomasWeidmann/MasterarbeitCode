@@ -44,7 +44,7 @@ class regular_ruling_set : public list_ranking
 	{
 		
 		std::vector<std::string> categories = {"local_work", "communication", "other"};
-		timer timer("ruler_pakete_senden", categories, "local_work", "regular_ruling_set");
+		timer timer("pakete_verfolgen", categories, "local_work", "regular_ruling_set");
 		
 		timer.add_info("num_local_vertices", std::to_string(num_local_vertices));
 		timer.add_info("dist_rulers", std::to_string(distance_rulers));
@@ -99,13 +99,16 @@ class regular_ruling_set : public list_ranking
 		std::int64_t num_reached_nodes = 0;
 		bool more_nodes_reached = true;
 		
-		timer.add_checkpoint("pakete_verfolgen");
+		//timer.add_checkpoint("pakete_verfolgen");
 
 		std::int64_t max_iteration = distance_rulers * std::log(num_global_vertices / distance_rulers);
 		std::int64_t iteration=0;
 		
-		while (iteration++ < max_iteration  || any_PE_has_work(comm, grid_comm, timer, more_nodes_reached, grid))
+		
+		//while (iteration++ < max_iteration  || any_PE_has_work(comm, grid_comm, timer, more_nodes_reached, grid))
+		while (any_PE_has_work(comm, timer, more_nodes_reached))
 		{	
+			iteration++;
 			std::fill(num_packets_per_PE.begin(), num_packets_per_PE.end(), 0);
 			more_nodes_reached = false;
 			
@@ -148,7 +151,11 @@ class regular_ruling_set : public list_ranking
 		
 			recv_buffer = alltoall(timer, out_buffer, num_packets_per_PE, comm, grid_comm, grid);
 		}
+		timer.add_info("needed_alltoall", std::to_string(iteration));
 		
+		timer.finalize(comm, "regular_ruling_set");
+		return;
+
 		timer.add_checkpoint("rekursion_vorbereiten");
 	
 		//wir müssen noch anfangsknoten zählen und dann die gesamtzahl als rank des final rulers setzten

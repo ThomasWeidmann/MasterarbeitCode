@@ -21,27 +21,8 @@ class regular_ruling_set2
 	public:
 	
 	
-	regular_ruling_set2(std::vector<std::uint64_t>& s, bool grid, kamping::Communicator<>& comm)
-	{	
-		this->s = s;
-		this->grid = grid;
-		std::uint64_t n = s.size() * comm.size();
-		if (grid)
-		{
-			double wurzel_n_durch_p34 = std::sqrt(n)/std::pow(comm.size(), 0.75);
-			this->dist_rulers = c_grid * wurzel_n_durch_p34 * std::log(c_grid * wurzel_n_durch_p34) + 1;
-			this->num_iterations = num_iterations_grid;
-		}
-		else
-		{
-			double wurzel_n_durch_p = std::sqrt(n) / comm.size();
-			this->dist_rulers = c_direct * wurzel_n_durch_p * std::log(c_direct * wurzel_n_durch_p) + 1;
-			this->num_iterations = num_iterations_direct;
-		}
-	}
 	
-	
-	regular_ruling_set2(std::vector<std::uint64_t>& s, std::uint64_t dist_rulers, std::uint32_t num_iterations, bool grid)
+	regular_ruling_set2(std::vector<std::uint64_t>& s, double dist_rulers, std::uint32_t num_iterations, bool grid)
 	{
 		this->s = s;
 		this->dist_rulers = dist_rulers;
@@ -58,7 +39,7 @@ class regular_ruling_set2
 		node_offset = rank * num_local_vertices;
 		
 		std::vector<std::string> categories = {"local_work", "communication", "other"};
-		timer timer("ruler_pakete_senden", categories, "local_work", "regular_ruling_set2");
+		timer timer("pakete_verfolgen", categories, "local_work", "regular_ruling_set2");
 		
 		timer.add_info(std::string("dist_rulers"), std::to_string(dist_rulers));
 		timer.add_info(std::string("num_local_vertices"), std::to_string(num_local_vertices));
@@ -121,11 +102,11 @@ class regular_ruling_set2
 		std::iota(mst.begin(),mst.end(),node_offset); 
 		std::vector<std::int64_t> del(num_local_vertices,0);
 		
-		timer.add_checkpoint("pakete_verfolgen");
+		//timer.add_checkpoint("pakete_verfolgen");
 
 
 
-		for (std::uint64_t iteration = 0; iteration < dist_rulers + 3; iteration++)
+		for (std::uint64_t iteration = 0; iteration < dist_rulers+1; iteration++)
 		{
 			
 			/*
@@ -241,19 +222,11 @@ class regular_ruling_set2
 		
 		timer.add_checkpoint("rekursion_vorbereiten");
 
-		//now just the global starting node is unreached, this node is also always a ruler
-		//std::vector<std::uint64_t> num_local_vertices_per_PE;
 		
-		std::vector<std::uint64_t> num_local_vertices_per_PE = allgatherv(timer, local_rulers.size(), comm, grid_comm, grid);
-
-		
-		
-		std::vector<std::uint64_t> prefix_sum_num_vertices_per_PE(size + 1,0);
-		for (std::uint32_t i = 1; i < size + 1; i++)
-		{
-			prefix_sum_num_vertices_per_PE[i] = prefix_sum_num_vertices_per_PE[i-1] + num_local_vertices_per_PE[i-1];
-		}
-		//if (rank == 0) std::cout << num_local_vertices * size << " reduziert auf " << prefix_sum_num_vertices_per_PE[size] << std::endl;
+		std::uint64_t node_offset_rec = comm.exscan(kamping::send_buf((std::uint64_t)local_rulers.size()), kamping::op(kamping::ops::plus<>())).extract_recv_buffer()[0];
+		std::uint64_t num_global_vertices_rec = node_offset_rec + local_rulers.size(); //das hier stimmt nur für rank = size -1
+		comm.bcast_single(kamping::send_recv_buf(num_global_vertices_rec), kamping::root(size-1));
+				
 		
 		std::vector<std::uint64_t> map_ruler_to_its_index(num_local_vertices);
 		std::vector<std::uint64_t> s_rec(local_rulers.size());
@@ -279,7 +252,7 @@ class regular_ruling_set2
 		}
 		
 		
-		std::function<std::uint64_t(const std::uint64_t)> lambda = [&] (std::uint64_t request) { return map_ruler_to_its_index[request-node_offset] + prefix_sum_num_vertices_per_PE[rank];};
+		std::function<std::uint64_t(const std::uint64_t)> lambda = [&] (std::uint64_t request) { return map_ruler_to_its_index[request-node_offset] + node_offset_rec;};
 		std::vector<std::uint64_t> recv_answers = request_reply(timer, requests, num_packets_per_PE, lambda, comm, grid_comm, grid);
 		
 		std::fill(num_packets_per_PE.begin(), num_packets_per_PE.end(), 0);
@@ -298,32 +271,30 @@ class regular_ruling_set2
 		std::vector<std::int64_t> ranks;
 		
 		std::uint64_t n = num_local_vertices * size;
-		std::uint64_t n_reduced = prefix_sum_num_vertices_per_PE[size];
-		if (rank == 0) std::cout << n_reduced / size << " nodes per PE " << std::endl;
-		if (num_iterations > 1)
+		std::uint64_t n_reduced = num_global_vertices_rec;
+		
+		timer.add_info(std::string("reduction_factor"), std::to_string(n/(double) n_reduced));
+
+		//if (rank == 0) std::cout << n_reduced / size << " nodes per PE " << std::endl;
+		//std::uint64_t start_rec = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+		
+		if (n_reduced / size > 10000)
 		{
-			if (grid)
-			{
-				double wurzel_n_durch_p34 = std::sqrt(n_reduced)/std::pow(size, 0.75);
-				double new_dist_rulers = c_grid * wurzel_n_durch_p34 * std::log(c_grid * wurzel_n_durch_p34);
-			
-				irregular_ruling_set2 algorithm(s_rec, r_rec, targetPEs_rec, new_dist_rulers,  prefix_sum_num_vertices_per_PE, num_iterations - 1, grid);
-				ranks = algorithm.start(comm, grid_comm);	
-			}
-			else
-			{
-				double wurzel_n_durch_p = std::sqrt(n_reduced)/size;
-				double new_dist_rulers = c_direct * wurzel_n_durch_p * std::log(c_direct * wurzel_n_durch_p);
-				irregular_ruling_set2 algorithm(s_rec, r_rec, targetPEs_rec, new_dist_rulers,  prefix_sum_num_vertices_per_PE, num_iterations - 1, grid);
-				ranks = algorithm.start(comm, grid_comm);	
-			}
+			irregular_ruling_set2 algorithm(s_rec, r_rec, targetPEs_rec, dist_rulers, node_offset_rec, num_global_vertices_rec, num_iterations - 1, grid);
+
+			ranks = algorithm.start(comm, grid_comm);
 			
 		}
 		else
 		{
-			irregular_pointer_doubling algorithm(s_rec, r_rec, targetPEs_rec, prefix_sum_num_vertices_per_PE, grid);
-			ranks = algorithm.start(comm, grid_comm);	
+			irregular_pointer_doubling algorithm(s_rec, r_rec, targetPEs_rec, grid, node_offset_rec, num_global_vertices_rec);
+			ranks = algorithm.start(comm, grid_comm);
 		}
+		
+		
+		//std::uint64_t end_rec = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+		//if (rank == 0) std::cout << "time = " << end_rec - start_rec << " for iteration " << num_iterations << std::endl;
+		
 		timer.switch_category("local_work");
 		timer.add_checkpoint("finalen_ranks_berechnen");
 		
@@ -358,9 +329,7 @@ class regular_ruling_set2
 			del[i] = size * num_local_vertices - 1 - (del[i] + recv_answers[packet_index]);
 		}
 		
-		std::string save_dir = "regular_ruling_set2_" + std::to_string(num_iterations);
-		//if (num_iterations == 2)
-			//save_dir = "regular_ruling_set2_rec";
+		std::string save_dir = "regular_ruling_set2";
 		timer.finalize(comm, save_dir);
 
 	
@@ -444,7 +413,7 @@ class regular_ruling_set2
 			send_displacements[i] = send_displacements[i-1] + num_packets_per_PE[i-1];
 		std::fill(num_packets_per_PE.begin(), num_packets_per_PE.end(), 0);
 	}
-	
+
 	
 	private:
 	std::uint64_t node_offset;
@@ -452,7 +421,8 @@ class regular_ruling_set2
 	std::uint64_t rank, size;
 	std::vector<std::uint64_t> s; //s einfach immer übergeben, sonst wird da viel zu viel rumkpiert
 	bool grid;
-	std::uint64_t dist_rulers;
+	double dist_rulers;
+	int dist_rulers_rec;
 	std::uint32_t num_iterations;
 };
 

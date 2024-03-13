@@ -1,5 +1,5 @@
 #include "list_ranking/irregular_pointer_doubling.cpp"
-#include "tree_rooting/forest_irregular_ruling_set2.cpp"
+#include "tree_rooting/forest_irregular_optimized_ruling_set.cpp"
 
 
 //this algorithm compressed by compressing every local subtree to its local root, in contrairy to forest_local_contraction which compresses every local subtree to its leaves
@@ -13,8 +13,13 @@ class forest_local_contraction2
 
 	}
 	
+	void add_timer_info(std::string info)
+	{
+		this->info = "\"" + info + "\"";
+	}
 	
-	std::vector<std::int64_t> start(kamping::Communicator<>& comm, std::vector<std::uint64_t>& s)
+	
+	std::vector<std::int64_t> start(kamping::Communicator<>& comm, karam::mpi::GridCommunicator& grid_comm, std::vector<std::uint64_t>& s, bool grid=true, bool aggregate=false, bool call_ruling_set=false)
 	{
 		size = comm.size();
 		rank = comm.rank();
@@ -28,8 +33,14 @@ class forest_local_contraction2
 		
 		std::vector<std::string> categories = {"local_work", "communication"};
 		timer timer("nodes_scannen", categories, "local_work", "forest_local_contraction");
+		timer.add_info(std::string("num_local_vertices"), std::to_string(num_local_vertices));
+		timer.add_info(std::string("call_ruling_set"), std::to_string(call_ruling_set));
+		timer.add_info(std::string("grid"), std::to_string(grid));
 		
-		timer.add_info(std::string("num_local_vertices"), std::to_string(num_local_vertices), true);
+		if (info.size() > 0)
+			timer.add_info(std::string("additional_info"), info);
+
+	
 		
 		std::vector<std::int64_t> local_root(num_local_vertices,-1); //1->1->2->3->4, with node 0-3 on this PE, then local_root[0]=local_root[1]=3
 		std::vector<std::uint64_t> dist_local_root(num_local_vertices,-1); //1->1->2->3->4, with node 0-3 on this PE, then local_root[0]=local_root[1]=3
@@ -127,73 +138,14 @@ class forest_local_contraction2
 		
 		
 		
-		/*
-		
-		std::vector<bool> has_local_successor(num_local_vertices, false);
-		std::vector<bool> has_local_predecessor(num_local_vertices, false);
-		for (std::uint64_t i = 0; i < num_local_vertices; i++)
-		{
-			std::int32_t targetPE = s[i] / num_local_vertices;
-			
-			if (targetPE == rank && i + node_offset != s[i])
-			{
-				has_local_successor[i] = true;
-				has_local_predecessor[s[i] - node_offset] = true;
-				//std::cout << i << " has local predecessor" << std::endl;
-			}
-		}
-		
-		
-		timer.add_checkpoint("remove_and_reduce");
-
-		
-		for (std::uint64_t i = 0; i < num_local_vertices; i++)
-		{
-			if (!has_local_predecessor[i])
-			{
-
-				std::uint64_t succ = i + node_offset;
-				std::int64_t r = 0;
-				while (((succ / num_local_vertices) == rank) && (succ != s[succ - node_offset])) 
-				{
-					succ = s[succ - node_offset];
-					r++;
-					if ((i + node_offset != succ) && (succ / num_local_vertices == rank)) {
-						removed_nodes.push_back({ succ,i + node_offset, r});
-						//std::cout << "removed node " << succ << " zeigt auf " << i + node_offset << " with dist " << r << std::endl;
-					}
-					
-
-				}
-				
-				if (succ / num_local_vertices == rank)
-				{
-					//that means we have final node
-					reduced_nodes.push_back({i + node_offset, i + node_offset, r});
-					std::cout << "final node " << i + node_offset << " zeigt auf " <<  i + node_offset << " with dist " << r << std::endl;
-					
-				}
-				else
-				{
-					reduced_nodes.push_back({i + node_offset, succ, r});
-					std::cout << "final node " << i + node_offset << " zeigt auf " << succ << " with dist " << r << std::endl;
-				}
-				
-				
-			
-				
-			}			
-		}
-		return std::vector<std::int64_t>(1);*/
 		timer.add_checkpoint("calculate_inices");
 
-		std::uint64_t num_local_vertices_reduced = reduced_nodes.size();
-		std::vector<std::uint64_t> num_vertices_per_PE_reduced(size);
-		comm.allgather(kamping::send_buf(num_local_vertices_reduced), kamping::recv_buf<kamping::resize_to_fit>(num_vertices_per_PE_reduced));
+
 		
-		std::vector<std::uint64_t> prefix_sum_num_vertices_per_PE_reduced(size+1,0);
-		for (std::uint32_t i = 1; i < size + 1; i++)
-			prefix_sum_num_vertices_per_PE_reduced[i] = prefix_sum_num_vertices_per_PE_reduced[i-1] + num_vertices_per_PE_reduced[i-1];
+		std::uint64_t node_offset_rec = comm.exscan(kamping::send_buf((std::uint64_t)reduced_nodes.size()), kamping::op(kamping::ops::plus<>())).extract_recv_buffer()[0];
+		std::uint64_t num_local_vertices_reduced = reduced_nodes.size();
+		std::uint64_t num_global_vertices_rec = node_offset_rec + reduced_nodes.size(); //das hier stimmt nur für rank = size -1
+		comm.bcast_single(kamping::send_recv_buf(num_global_vertices_rec), kamping::root(size-1));
 		
 		std::unordered_map<std::uint64_t,std::uint64_t> source_map; // when node i+node_offset gets gemoved and points to source j, then map[i+node_offset] = j;
 		std::unordered_map<std::uint64_t,std::int64_t> r_map; //this tells us the distance to the source
@@ -226,34 +178,27 @@ class forest_local_contraction2
 			request[packet_index] = reduced_nodes[i].s;
 		}
 		
-		
-		auto recv = comm.alltoallv(kamping::send_buf(request), kamping::send_counts(num_packets_per_PE));
-		num_packets_per_PE = recv.extract_recv_counts();
-		std::vector<std::uint64_t> recv_request = recv.extract_recv_buffer();
-		/*
-		std::cout << rank << " with recv request: ";
-		for (int i = 0; i <recv_request.size(); i++)
-			std::cout << recv_request[i] << " ";
-		std::cout << std::endl;*/
-		
 		struct answer {
 			std::uint64_t source;
 			std::int64_t r;
 		};
-		
-		std::vector<answer> answers(recv_request.size());
-		for (std::uint64_t i = 0; i <recv_request.size(); i++)
-		{
-			if (source_map.contains(recv_request[i])) //iff der requested node removed wurde
+
+		std::function<answer(const std::uint64_t)> lambda = [&] (std::uint64_t request) {
+			answer answer;
+			if (source_map.contains(request))
 			{
-				answers[i] = {map_reduced_nodes_to_its_index[source_map[recv_request[i]]-node_offset] + prefix_sum_num_vertices_per_PE_reduced[rank], r_map[recv_request[i]]};
+				answer.source = map_reduced_nodes_to_its_index[source_map[request]-node_offset] + node_offset_rec;
+				answer.r = r_map[request];
 			}
 			else
 			{
-				answers[i] = {map_reduced_nodes_to_its_index[recv_request[i] - node_offset] + prefix_sum_num_vertices_per_PE_reduced[rank], 0};
+				answer.source = map_reduced_nodes_to_its_index[request - node_offset] + node_offset_rec;
+				answer.r = 0;
 			}
-		}
-		std::vector<answer> recv_answers = comm.alltoallv(kamping::send_buf(answers), kamping::send_counts(num_packets_per_PE)).extract_recv_buffer();
+			return answer;
+		};
+		std::function<std::uint64_t(const std::uint64_t)> request_assignment =  [](std::uint64_t request) {return request;};
+		std::vector<answer> recv_answers = request_reply(timer, request, num_packets_per_PE, lambda, comm, grid_comm, grid, aggregate, request_assignment);
 		
 		std::vector<std::uint64_t> s_reduced(num_local_vertices_reduced);
 		std::vector<std::int64_t> r_reduced(num_local_vertices_reduced);
@@ -272,7 +217,7 @@ class forest_local_contraction2
 
 		}
 		
-		timer.add_info(std::string("num_local_vertices_reduced"), std::to_string(num_local_vertices_reduced), true);
+		timer.add_info(std::string("average_num_local_vertices_reduced"), std::to_string(num_global_vertices_rec/size));
 
 		
 				//if (rank == 0) std::cout << "Instanzgröße von " << size * num_local_vertices << " auf " << prefix_sum_num_vertices_per_PE_reduced[size] * 100 / (size * num_local_vertices) << "% reduziert" << std::endl;
@@ -282,12 +227,35 @@ class forest_local_contraction2
 		
 		std::vector<std::uint64_t> local_rulers(s_reduced.size());
 
-		forest_irregular_ruling_set2 algorithm(10);
-		algorithm.start(s_reduced, r_reduced, targetPEs_reduced, prefix_sum_num_vertices_per_PE_reduced, comm,local_rulers);
-		std::vector<std::int64_t> ranks = algorithm.result_dist;
 		
-		//irregular_pointer_doubling algorithm(s_reduced, r_reduced, targetPEs_reduced, prefix_sum_num_vertices_per_PE_reduced);
-		//std::vector<std::int64_t> ranks = algorithm.start(comm);
+		std::vector<std::int64_t> ranks;
+		
+		if (call_ruling_set)
+		{
+			forest_irregular_optimized_ruling_set recursion(100, 10, grid, aggregate);
+			recursion.start(s_reduced, r_reduced, targetPEs_reduced, node_offset_rec, num_global_vertices_rec, comm, grid_comm, s_reduced);
+			ranks = recursion.result_dist;
+		}
+		else
+		{
+			irregular_pointer_doubling algorithm(s_reduced, r_reduced, targetPEs_reduced, grid, node_offset_rec, num_global_vertices_rec);
+			ranks = algorithm.start(comm, grid_comm);
+		}
+		/*
+		if (num_global_vertices_rec / size < 10000)
+		{
+			irregular_pointer_doubling algorithm(s_reduced, r_reduced, targetPEs_reduced, grid, node_offset_rec, num_global_vertices_rec);
+			ranks = algorithm.start(comm, grid_comm);
+		}
+		else
+		{
+			forest_irregular_optimized_ruling_set recursion(100, 10, grid, aggregate);
+			recursion.start(s_reduced, r_reduced, targetPEs_reduced, node_offset_rec, num_global_vertices_rec, comm, grid_comm, s_reduced);
+			ranks = recursion.result_dist;
+		}*/
+		
+		
+		
 		
 		timer.add_checkpoint("calculate_final_ranks");
 
@@ -324,8 +292,9 @@ class forest_local_contraction2
 		std::fill(num_packets_per_PE.begin(), num_packets_per_PE.end(), 0);
 	}
 		
-	private:
-	
+	private:	
+	std::string info = "";
+
 	std::uint64_t node_offset;
 	std::uint64_t num_local_vertices;
 	std::int32_t rank, size;

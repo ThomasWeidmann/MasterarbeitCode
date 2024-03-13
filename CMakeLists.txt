@@ -18,5 +18,12 @@ target_link_libraries(Code PUBLIC KaGen::KaGen)
 add_subdirectory(extern/kamping)
 target_link_libraries(Code PUBLIC kamping::kamping)
 
+set(MESSAGE_QUEUE_USE_BOOST ON)
+
+add_subdirectory(extern/message-queue)
+target_link_libraries(Code PUBLIC message-queue::message-queue)
+
+add_subdirectory(extern/fmt)
+target_link_libraries(Code PUBLIC fmt::fmt)
 
 target_compile_options(Code PUBLIC -O3 -march=native)

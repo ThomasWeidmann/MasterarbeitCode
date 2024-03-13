@@ -9,9 +9,9 @@ class tree_euler_tour
 
 	public:
 	
-	tree_euler_tour(kamping::Communicator<>& comm, std::vector<std::uint64_t>& s, std::uint32_t dist_rulers)
+	tree_euler_tour(kamping::Communicator<>& comm, std::vector<std::uint64_t>& s, std::uint32_t dist_rulers, bool grid)
 	{
-
+		this->grid = grid;
 		num_local_vertices = s.size();
 		size = comm.size();
 		rank = comm.rank();
@@ -21,14 +21,22 @@ class tree_euler_tour
 
 	}
 	
-	std::vector<std::int64_t> start(kamping::Communicator<>& comm, std::vector<std::uint64_t>& s)
+	void add_timer_info(std::string info)
+	{
+		this->info = "\"" + info + "\"";
+	}
+	
+	std::vector<std::int64_t> start(kamping::Communicator<>& comm, karam::mpi::GridCommunicator& grid_comm, std::vector<std::uint64_t>& s)
 	{
 		std::vector<std::string> categories = {"local_work", "communication", "other"};
 		timer timer("graph umdrehen", categories, "local_work", "tree_euler_tour");
 		
 		timer.add_info(std::string("dist_rulers"), std::to_string(dist_rulers));
 		timer.add_info(std::string("num_local_vertices"), std::to_string(num_local_vertices));
+		timer.add_info("grid", std::to_string(grid));
 		
+		if (info.size() > 0)
+			timer.add_info(std::string("additional_info"), info);
 		
 		std::int64_t local_root = -1;
 		
@@ -65,7 +73,11 @@ class tree_euler_tour
 		}
 		timer.switch_category("communication");
 		
-		auto recv = comm.alltoallv(kamping::send_buf(edges), kamping::send_counts(num_packets_per_PE)).extract_recv_buffer();
+		//auto recv = comm.alltoallv(kamping::send_buf(edges), kamping::send_counts(num_packets_per_PE)).extract_recv_buffer();
+		
+		auto recv = alltoall(timer, edges, num_packets_per_PE, comm, grid_comm, grid);
+
+		
 		timer.switch_category("local_work");
 	
 		all_edges = std::vector<std::uint64_t>(recv.size() + s.size());
@@ -102,16 +114,12 @@ class tree_euler_tour
 		
 		// graph sucessfully added all back edges to adjacency array
 		num_local_edges = all_edges.size();
-		std::vector<std::uint64_t> send(1,num_local_edges);
-		std::vector<std::uint64_t> recv_sizes;
-		timer.switch_category("communication");
-
-		comm.allgather(kamping::send_buf(send), kamping::recv_buf<kamping::resize_to_fit>(recv_sizes));
-		timer.switch_category("local_work");
 		
-		std::vector<std::uint64_t> prefix_sum_num_edges_per_PE(size + 1,0);
-		for (std::uint64_t i = 1; i < size + 1; i++)
-			prefix_sum_num_edges_per_PE[i] = recv_sizes[i-1] + prefix_sum_num_edges_per_PE[i-1];
+		
+		std::uint64_t node_offset_rec = comm.exscan(kamping::send_buf((std::uint64_t)num_local_edges), kamping::op(kamping::ops::plus<>())).extract_recv_buffer()[0];
+		std::uint64_t num_global_vertices_rec = node_offset_rec + num_local_edges; //das hier stimmt nur für rank = size -1
+		comm.bcast_single(kamping::send_recv_buf(num_global_vertices_rec), kamping::root(size-1));
+				
 		
 		//idea, if we want the following edge of (a,b) in the euler tour, we need to fing the edge (b,a) in adjacency array to answer this
 		//so we sort adjacency array to perfom binary sorts, so for every node i the values all_edges[bounds[i]], ..., all_edges[bounds[i+1]-1] are in ascending order
@@ -166,8 +174,32 @@ class tree_euler_tour
 			
 		}
 		
+		std::function<std::uint64_t(const edge)> lambda = [&](edge edge) {
+			std::uint64_t lower_bound = bounds[edge.destination - node_offset];
+			std::uint64_t upper_bound = bounds[edge.destination - node_offset + 1];
+			
+			std::uint64_t dynamic_lower_bound = lower_bound;
+			std::uint64_t dynamic_upper_bound = upper_bound;
+			
+			
+			while (dynamic_upper_bound - dynamic_lower_bound > 1)
+			{
+				std::uint64_t middle = (dynamic_lower_bound + dynamic_upper_bound) / 2;
+				
+				if (all_edges[middle] > edge.source)
+					dynamic_upper_bound = middle;
+				else
+					dynamic_lower_bound = middle;
+				
+			}
+			std::uint64_t result = dynamic_lower_bound; //all_edges[result] == recv_buffer[i].source
+			
+			return node_offset_rec + lower_bound + ((result - lower_bound + 1) % (upper_bound - lower_bound));
+		};
+		std::vector<std::uint64_t> recv_answers = request_reply(timer, request, num_packets_per_PE, lambda, comm, grid_comm, grid);
+
 	
-		
+		/*
 		timer.switch_category("communication");
 			
 		auto recv_request = comm.alltoallv(kamping::send_buf(request), kamping::send_counts(num_packets_per_PE));
@@ -175,8 +207,6 @@ class tree_euler_tour
 		std::vector<edge> recv_buffer = recv_request.extract_recv_buffer();
 
 		std::vector<std::uint64_t> answers(recv_buffer.size());
-		
-		
 		for (std::uint64_t i = 0; i < recv_buffer.size(); i++)
 		{
 			std::uint64_t lower_bound = bounds[recv_buffer[i].destination - node_offset];
@@ -200,15 +230,19 @@ class tree_euler_tour
 			
 			
 			
-			answers[i] = prefix_sum_num_edges_per_PE[rank] + lower_bound + ((result - lower_bound + 1) % (upper_bound - lower_bound));
+			answers[i] = node_offset_rec + lower_bound + ((result - lower_bound + 1) % (upper_bound - lower_bound));
 			
 			
 		}
 		
 		
 		timer.switch_category("communication");
-		
+
 		auto recv_answers = comm.alltoallv(kamping::send_buf(answers), kamping::send_counts(recv_request.extract_recv_counts())).extract_recv_buffer();
+
+*/
+
+
 		timer.switch_category("local_work");
 		std::vector<std::uint64_t> s_edges(num_local_edges);
 	
@@ -243,7 +277,7 @@ class tree_euler_tour
 			}
 			std::uint64_t result = dynamic_lower_bound;
 			
-			s_edges[result] = result + prefix_sum_num_edges_per_PE[rank];
+			s_edges[result] = result + node_offset_rec;
 			all_edges_weights[result] = 0;
 		}
 		
@@ -267,6 +301,10 @@ class tree_euler_tour
 		std::cout << "PE " << rank << " with all_edges_weights arr: ";
 		for (int i = 0; i < all_edges_weights.size(); i++)
 			std::cout << all_edges_weights[i] << ",";
+		std::cout << std::endl;
+		for (std::uint64_t i = 0; i < num_local_vertices; i++)
+		for (std::uint64_t j = bounds[i]; j < bounds[i+1]; j++)
+			std::cout << "(" << i + node_offset<< "," << all_edges[j] << "," << all_edges_weights[j] << "),";
 		std::cout << std::endl;*/
 		
 		std::vector<std::uint32_t> targetPEs(num_local_edges);
@@ -278,10 +316,12 @@ class tree_euler_tour
 		timer.add_checkpoint("ruling_set");
 		timer.switch_category("other");
 
-		
+
 		//irregular_pointer_doubling algorithm(s_edges,all_edges_weights,targetPEs,prefix_sum_num_edges_per_PE);
-		irregular_ruling_set2 algorithm(s_edges, all_edges_weights, targetPEs, dist_rulers, prefix_sum_num_edges_per_PE);
-		std::vector<std::int64_t> ranks = algorithm.start(comm);
+		irregular_ruling_set2 algorithm(s_edges, all_edges_weights, targetPEs, dist_rulers, node_offset_rec, num_global_vertices_rec, 1, grid);
+		algorithm.add_timer_info(info);
+
+		std::vector<std::int64_t> ranks = algorithm.start(comm, grid_comm);
 		timer.switch_category("local_work");
 		
 		timer.add_checkpoint("final_ranks_berechnen");
@@ -295,8 +335,8 @@ class tree_euler_tour
 		std::cout << "PE " << rank << " with rank array:";
 		for (int i = 0; i < final_ranks.size(); i++)
 			std::cout << final_ranks[i] << ",";
-		std::cout << std::endl;*/
-		
+		std::cout << std::endl;
+		*/
 		timer.finalize(comm, "euler_tour");
 		
 		return final_ranks;
@@ -317,7 +357,7 @@ class tree_euler_tour
 	
 	private: 
 	
-	
+	bool grid = false;
 	
 	std::uint64_t size;
 	std::uint64_t rank;
@@ -330,5 +370,7 @@ class tree_euler_tour
 	std::vector<std::uint64_t> all_edges;
 	std::vector<std::int64_t> all_edges_weights;
 	std::vector<std::uint64_t> bounds;
+	std::string info = "";
+
 	
 };
